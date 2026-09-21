@@ -474,6 +474,20 @@ def main() -> int:
           "the draft preview is a contract call, not a reimplementation")
     check("verify_evaluation" in frontend,
           "verification is a contract call, not a reimplementation")
+    # "No console.log in production" is a requirement, and a grep for it is one
+    # of the few places a grep is the right tool: it is a statement about the
+    # shipped bytes, not about syntax.
+    noisy = []
+    for path in sorted((ROOT / "frontend" / "src").rglob("*.ts*")):
+        text = path.read_text(encoding="utf8")
+        for i, line in enumerate(text.split("\n"), 1):
+            stripped = line.strip()
+            if stripped.startswith("*") or stripped.startswith("//"):
+                continue
+            if "console." in line:
+                noisy.append(f"{path.relative_to(ROOT)}:{i}")
+    check(not noisy, f"no console statements in the shipped frontend {noisy[:4]}")
+
     scoring = read("frontend/src/lib/format.ts")
     check("Math.floor(n / 100)" in scoring,
           "the UI's score formatter matches the contract's _score_text")
