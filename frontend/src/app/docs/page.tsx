@@ -166,6 +166,22 @@ export default function DocsPage() {
               </b>
               , all in integer hundredths
             </Formula>
+            <Callout>
+              <strong>A worked example.</strong>{" "}
+              <a
+                href="https://github.com/kenil1710/grantjudge/blob/main/docs/WORKED-EXAMPLE.md"
+                target="_blank"
+                rel="noreferrer"
+                style={{ color: "var(--gold)" }}
+              >
+                docs/WORKED-EXAMPLE.md
+              </a>{" "}
+              walks three real filings — a strong one, a thin one and one made of
+              adjectives — from text to signal counts to the bracket each
+              criterion earned to the weighted total. Every number in it is
+              computed by importing the contract, so it cannot drift away from
+              the rubric it explains.
+            </Callout>
             <P>
               Every stored field is re-derived from the agreed vector after
               consensus returns, re-hashed, and published. The{" "}
