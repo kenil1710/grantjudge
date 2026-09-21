@@ -14,7 +14,10 @@ import {
   Wallet,
 } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
+import { useState } from "react";
+import { ChevronDown } from "lucide-react";
 import { useConfig } from "@/lib/hooks";
+import type { Config } from "@/types";
 import { CANONICAL_ADDRESS, CONSUMER_ADDRESS, CONTRACT_ADDRESS } from "@/lib/genlayer";
 import { describeWindow, formatGen, scoreText } from "@/lib/format";
 
@@ -182,6 +185,7 @@ export default function DocsPage() {
               computed by importing the contract, so it cannot drift away from
               the rubric it explains.
             </Callout>
+            <Vocabulary config={config} />
             <P>
               Every stored field is re-derived from the agreed vector after
               consensus returns, re-hashed, and published. The{" "}
@@ -395,6 +399,118 @@ if not answer.get("ok"):
         }
       `}</style>
     </AppShell>
+  );
+}
+
+/**
+ * The signal vocabulary, READ OFF THE DEPLOYED CONTRACT rather than copied
+ * into this file.
+ *
+ * It is the project's whole thesis made checkable in one component: the rubric
+ * is not a policy document somebody wrote down, it is a list `get_config`
+ * returns, and a proposer can read the exact words that raise and lower their
+ * ceiling. A hardcoded copy here would be a second rubric, and the first time
+ * the contract's changed the page would be confidently wrong.
+ */
+function Vocabulary({ config }: { config: Config | undefined }) {
+  const [open, setOpen] = useState(false);
+  if (!config) return null;
+
+  const groups: { label: string; words: string[]; good: boolean }[] = [
+    { label: "Dates and milestones", words: config.specific_words, good: true },
+    { label: "Budget language", words: config.budget_words, good: true },
+    { label: "Track record", words: config.team_words, good: true },
+    { label: "Named beneficiaries", words: config.impact_words, good: true },
+    { label: "Stated risks", words: config.risk_words, good: true },
+    { label: "Filler — subtracted", words: config.filler_words, good: false },
+    { label: "Instructing the scorer — subtracted twice", words: config.injection_words, good: false },
+  ];
+
+  return (
+    <div style={{ margin: "18px 0" }}>
+      <button
+        className="btn btn-ghost"
+        onClick={() => setOpen((v) => !v)}
+        style={{ fontSize: "0.83rem", padding: "7px 12px" }}
+      >
+        {open ? "Hide" : "Show"} the exact vocabulary this contract counts
+        <ChevronDown
+          size={14}
+          style={{ transform: open ? "rotate(180deg)" : "none", transition: "transform 160ms ease" }}
+        />
+      </button>
+
+      {open && (
+        <div
+          style={{
+            marginTop: 12,
+            padding: "16px 18px",
+            borderRadius: 11,
+            background: "rgba(0,0,0,0.24)",
+            border: "1px solid var(--line-soft)",
+          }}
+        >
+          <p style={{ margin: "0 0 14px", fontSize: "0.8rem", color: "var(--muted)", lineHeight: 1.6 }}>
+            Read from <code>get_config</code> on the deployed contract as this
+            page loaded — not copied into the app. Each is matched as a
+            lower-cased substring, and each word counts <strong>once</strong>,
+            however many times it appears: repetition buys nothing.
+          </p>
+          <div style={{ display: "grid", gap: 14 }}>
+            {groups.map((g) => (
+              <div key={g.label}>
+                <div
+                  style={{
+                    fontSize: "0.73rem",
+                    letterSpacing: "0.07em",
+                    textTransform: "uppercase",
+                    color: g.good ? "var(--gold)" : "var(--rose)",
+                    marginBottom: 7,
+                  }}
+                >
+                  {g.label}
+                </div>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
+                  {(g.words ?? []).map((word) => (
+                    <span
+                      key={word}
+                      className="mono"
+                      style={{
+                        fontSize: "0.72rem",
+                        padding: "2px 8px",
+                        borderRadius: 999,
+                        color: g.good ? "var(--cream-dim)" : "var(--rose)",
+                        background: g.good ? "rgba(255,255,255,0.04)" : "rgba(201,112,112,0.09)",
+                        border: `1px solid ${g.good ? "var(--line-soft)" : "rgba(201,112,112,0.22)"}`,
+                      }}
+                    >
+                      {word.trim()}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+          <div style={{ marginTop: 16, paddingTop: 14, borderTop: "1px solid var(--line-soft)" }}>
+            <div style={{ fontSize: "0.73rem", letterSpacing: "0.07em", textTransform: "uppercase", color: "var(--gold)", marginBottom: 8 }}>
+              The depth ladders
+            </div>
+            <div className="mono" style={{ fontSize: "0.76rem", color: "var(--cream-dim)", display: "grid", gap: 4 }}>
+              {Object.entries(config.depth_ladders ?? {}).map(([name, bounds]) => (
+                <div key={name}>
+                  {name}: {(bounds as number[]).join(", ")}
+                </div>
+              ))}
+            </div>
+            <p style={{ margin: "10px 0 0", fontSize: "0.78rem", color: "var(--muted)", lineHeight: 1.6 }}>
+              A signal scores one point for each bound it reaches. Eighteen points
+              in total, rescaled to a depth of 0–7, minus a penalty of
+              <code> min(filler + 2 × injection, 4)</code>.
+            </p>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
 
