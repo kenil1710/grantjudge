@@ -46,21 +46,21 @@ export const useRound = (roundId: number | null, live = false) =>
   useSWR(
     roundId ? ["round", roundId] : null,
     () => getRound(roundId as number),
-    { ...STABLE, refreshInterval: live ? 12_000 : 0 },
+    { ...STABLE, refreshInterval: live ? 20_000 : 0 },
   );
 
 export const useProposals = (roundId: number | null, live = false) =>
   useSWR(
     roundId ? ["proposals", roundId] : null,
     () => getProposals(roundId as number),
-    { ...STABLE, refreshInterval: live ? 12_000 : 0 },
+    { ...STABLE, refreshInterval: live ? 20_000 : 0 },
   );
 
 export const useRankings = (roundId: number | null, live = false) =>
   useSWR(
     roundId ? ["rankings", roundId] : null,
     () => getRankings(roundId as number),
-    { ...STABLE, refreshInterval: live ? 12_000 : 0 },
+    { ...STABLE, refreshInterval: live ? 20_000 : 0 },
   );
 
 export const useProposal = (roundId: number | null, proposalId: number | null) =>

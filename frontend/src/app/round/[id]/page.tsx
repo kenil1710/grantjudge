@@ -29,8 +29,18 @@ import { formatGen, formatTime, sameAddress, scoreText, shortAddress } from "@/l
 export default function RoundPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const roundId = Number(id);
-  const live = true;
-  const { data: round, error, isLoading, mutate: reloadRound } = useRound(roundId, live);
+  const { data: round, error, isLoading, mutate: reloadRound } = useRound(roundId, true);
+  /**
+   * Poll the heavy reads only while the round is actually in motion.
+   *
+   * Studio Dev meters requests per minute, and three polling hooks on an open
+   * page is fifteen reads a minute for a round that has been settled for a
+   * week. A finalised round changes only when somebody claims, and a claim
+   * already revalidates through `reload`.
+   */
+  const live = round
+    ? round.status !== "FINALIZED" && round.status !== "CANCELLED"
+    : false;
   const { data: proposals, mutate: reloadProposals } = useProposals(roundId, live);
   const { data: rankings, mutate: reloadRankings } = useRankings(roundId, live);
   const { account } = useWallet();
