@@ -306,6 +306,7 @@ test/fixtures/proposals.json the seeded proposal texts
 tools/audit.py               the cross-file audit and the rejection ledger
 tools/evidence.py            renders docs/EVIDENCE.md from what the seed read back
 tools/worked_example.py      renders docs/WORKED-EXAMPLE.md from the contract itself
+tools/verify.sh              the short loop: everything that costs no transaction
 frontend/                    the Next.js app
 
 docs/WORKED-EXAMPLE.md       three filings, scored, with every number computed
@@ -319,6 +320,8 @@ docs/seed-evidence.json      the machine-readable form
 ### Running it
 
 ```bash
+bash tools/verify.sh              # everything that costs no transaction
+
 python3 test/test_logic.py        # the offline suite — stdlib only
 python3 tools/audit.py            # the repository audit
 
