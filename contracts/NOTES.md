@@ -13,8 +13,8 @@ The obvious design is: show the model the proposal and the criteria, ask for a
 number, store the number. It fails for two independent reasons and the second
 one is fatal.
 
-**It does not settle.** Five validators each asked for six independent integers
-will not agree on all six. A protocol whose rounds mostly go UNDETERMINED is a
+**It does not settle.** A set of validators, each asked for six independent
+integers, will not agree on all six. A protocol whose rounds mostly go UNDETERMINED is a
 protocol that does not work, whatever its properties on paper.
 
 **It puts the ceiling in the model's hands.** If the model may return any

@@ -1,4 +1,4 @@
-# We asked five strangers to grade a grant proposal. They agreed.
+# We asked independent strangers to grade a grant proposal. They agreed.
 
 *How GrantJudge puts DAO grant evaluation on chain without putting a single wei
 in a language model's hands.*
@@ -58,7 +58,7 @@ for a score out of seven, store the score.
 
 It fails twice, and the second failure is the interesting one.
 
-**It does not settle.** Five validators, each independently asked for six
+**It does not settle.** A set of validators, each independently asked for six
 integers, will not produce six matching integers. A protocol whose consensus
 rounds mostly come back UNDETERMINED is a protocol that does not work, whatever
 its properties on paper look like.
