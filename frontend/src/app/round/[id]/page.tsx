@@ -301,7 +301,9 @@ export default function RoundPage({ params }: { params: Promise<{ id: string }> 
           message={
             round.phase === "OPEN"
               ? "Nobody has filed to this round. Be the first — the deposit comes back in full if you clear the bar."
-              : "This round closed without a single proposal, so the whole pool goes back to the treasurer."
+              : round.status === "CANCELLED"
+                ? "The treasurer closed this round and took the pool back. That is only possible while nobody has filed: the instant one proposal arrives, the pool stops being theirs to move."
+                : "This round closed without a single proposal, so the whole pool goes back to the treasurer."
           }
           action={
             round.phase === "OPEN" ? (
