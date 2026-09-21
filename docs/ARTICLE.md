@@ -289,7 +289,7 @@ A five GEN round with two seats and a four-out-of-seven bar, four proposals:
 awards + remainder = pool, exactly:  4.389558 + 0.610442 = 5.00 GEN
 ```
 
-Then both proposals appealed. The one that added real evidence — milestones
+Then both rejected proposals appealed. The one that added real evidence — milestones
 with months attached, a budget in four lines, a named track record, a risk and
 its mitigation — went from **0.54 to 5.04** and was funded out of the remainder.
 Not fully: the remainder could not cover 0.789558 GEN of its proportional
