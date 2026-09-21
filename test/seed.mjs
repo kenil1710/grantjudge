@@ -128,6 +128,47 @@ async function call(client, role, method, callArgs = [], value = 0n, { quiet = f
 }
 
 /**
+ * The id of a round this treasurer created with this name, read off the chain.
+ *
+ * WHY A SCRIPT THAT JUST CREATED A ROUND HAS TO GO AND LOOK FOR IT. A write can
+ * exceed the client's patience and land anyway — measured at 313 seconds on
+ * Studio Dev against a 300-second give-up. When that happened the script had no
+ * round id, filed its three proposals into round "0", and every one was
+ * correctly refused; the contract behaved perfectly and the run lost a whole
+ * seeded round to the client being wrong about the chain.
+ *
+ * So a create that comes back unsettled is not treated as a failure. It is
+ * treated as a QUESTION, and the chain is asked.
+ */
+async function findRound(client, treasurer, name, attempts = 6) {
+  for (let i = 1; i <= attempts; i++) {
+    try {
+      const mine = await client.view("get_rounds_by_treasurer", [treasurer]);
+      const match = (mine?.rounds ?? []).filter((r) => r.name === name).pop();
+      if (match) return match.round_id;
+    } catch {
+      /* the RPC having a bad minute is not an answer */
+    }
+    await sleep(10_000);
+  }
+  return null;
+}
+
+/**
+ * Create a round, and be sure afterwards whether it exists.
+ */
+async function createRound(client, role, args, value, name) {
+  const res = await call(client, role, "create_round", args, value);
+  if (res.json?.round_id) return res;
+  const found = await findRound(client, client.account.address, name);
+  if (found) {
+    log(`               the create outran the client's patience but LANDED — round ${found}`);
+    return { out: res.out, json: { ...(res.json ?? {}), status: "OK", round_id: found } };
+  }
+  return res;
+}
+
+/**
  * Evaluate one proposal, retrying a round that did not settle.
  *
  * A round can legitimately fail to settle: rule 10 says that when two
@@ -181,11 +222,11 @@ async function seedDemo() {
   /* --- round 1 ------------------------------------------------------- */
   log("");
   log("  ROUND 1 — GenLayer Ecosystem Growth, 5 GEN, 4 criteria, 2 seats, 4.00 bar");
-  let r = await call(clients.treasurer1, "treasurer1", "create_round", [
+  let r = await createRound(clients.treasurer1, "treasurer1", [
     "GenLayer Ecosystem Growth",
     "Funding the infrastructure the rest of the ecosystem builds on: indexing, tooling and the things every team currently rebuilds for itself.",
     CRITERIA_4, 4, 2, 400, WINDOW,
-  ], 5n * GEN);
+  ], 5n * GEN, "GenLayer Ecosystem Growth");
   const round1 = r.json?.round_id;
   check(Boolean(round1), "round 1 created", `id ${round1}`);
   if (r.json?.deadline) deadlines.push(Number(r.json.deadline));
@@ -209,11 +250,11 @@ async function seedDemo() {
   /* --- round 2 ------------------------------------------------------- */
   log("");
   log("  ROUND 2 — Developer Tooling, 3 GEN, 3 criteria, 2 seats, 3.00 bar");
-  r = await call(clients.treasurer2, "treasurer2", "create_round", [
+  r = await createRound(clients.treasurer2, "treasurer2", [
     "Developer Tooling",
     "Two grants for the tools that make building on GenLayer faster: a step debugger and a type generator.",
     CRITERIA_3, 2, 2, 300, WINDOW,
-  ], 3n * GEN);
+  ], 3n * GEN, "Developer Tooling");
   const round2 = r.json?.round_id;
   check(Boolean(round2), "round 2 created", `id ${round2}`);
   if (r.json?.deadline) deadlines.push(Number(r.json.deadline));
@@ -229,11 +270,11 @@ async function seedDemo() {
   /* --- round 3: cancelled -------------------------------------------- */
   log("");
   log("  ROUND 3 — Security Audits, cancelled before anybody filed");
-  r = await call(clients.treasurer3, "treasurer3", "create_round", [
+  r = await createRound(clients.treasurer3, "treasurer3", [
     "Security Audits",
     "A pool for third-party audits of ecosystem contracts. Withdrawn before any proposal was filed.",
     CRITERIA_3, 3, 1, 400, 3600,
-  ], 2n * GEN);
+  ], 2n * GEN, "Security Audits");
   const round3 = r.json?.round_id;
   const before3 = await reader.view("payout_of", [clients.treasurer3.account.address]);
   const cancel = await call(clients.treasurer3, "treasurer3", "cancel_round", [round3]);
@@ -254,13 +295,19 @@ async function seedDemo() {
   /* --- round 4: a stall ---------------------------------------------- */
   log("");
   log("  ROUND 4 — Docs and Translation, 2 GEN, 1 seat, one proposal nobody scores");
-  r = await call(clients.treasurer1, "treasurer1", "create_round", [
+  r = await createRound(clients.treasurer1, "treasurer1", [
     "Docs and Translation",
     "One grant for documentation work. Three proposals, one seat, and one entry the network never manages to score.",
     CRITERIA_3, 3, 1, 300, WINDOW,
-  ], 2n * GEN);
+  ], 2n * GEN, "Docs and Translation");
   const round4 = r.json?.round_id;
-  if (r.json?.deadline) deadlines.push(Number(r.json.deadline));
+  check(Boolean(round4), "round 4 created", `id ${round4}`);
+  if (round4) {
+    // Read off the chain rather than out of the return value, which a
+    // recovered create does not carry.
+    const view = await reader.view("get_round", [round4]);
+    if (view?.found) deadlines.push(Number(view.deadline));
+  }
   const r4ids = {};
   for (const [role, key, ask] of [
     ["builder2", "translation", "1.2"],
@@ -277,11 +324,11 @@ async function seedDemo() {
   /* --- round 5: stays open ------------------------------------------- */
   log("");
   log("  ROUND 5 — Q4 Ecosystem Fund, left OPEN for the UI");
-  r = await call(clients.treasurer2, "treasurer2", "create_round", [
+  r = await createRound(clients.treasurer2, "treasurer2", [
     "Q4 Ecosystem Fund",
     "An open round accepting proposals for the next quarter. Anyone may file until the deadline.",
     CRITERIA_4, 8, 3, 400, 7 * 86400,
-  ], 4n * GEN);
+  ], 4n * GEN, "Q4 Ecosystem Fund");
   const round5 = r.json?.round_id;
   check(Boolean(round5), "round 5 created and left open", `id ${round5}`);
   record({ round_id: round5, name: "Q4 Ecosystem Fund", outcome: "OPEN", pool_gen: "4.00" });

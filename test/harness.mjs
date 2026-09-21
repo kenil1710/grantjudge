@@ -366,7 +366,21 @@ export function connect({ networkName = argOf("network", "studiodev"), address, 
   const account = createAccount(acc[role].key);
   const wallet = createClient({ chain, account });
   const read = createClient({ chain });
-  const deadline = chain.isStudio ? 300_000 : 600_000;
+  /**
+   * How long to wait for a write to reach a terminal state.
+   *
+   * RAISED FROM 300s AFTER IT COST A SEEDED ROUND. Studio Dev's write latency
+   * was measured at 18 to 313 seconds for the same call (docs/PROBE.md §3), and
+   * a `create_round` that took 313s was given up on at 300 — then landed
+   * anyway. The script had no round id, filed its three proposals into round
+   * "0", and every one was correctly refused. The contract behaved perfectly;
+   * the client's patience was the bug.
+   *
+   * Giving up too early is worse than waiting too long here, because a write
+   * that lands after the client stopped watching leaves the SCRIPT wrong about
+   * the chain — which is the one failure mode a seed script must not have.
+   */
+  const deadline = chain.isStudio ? 900_000 : 900_000;
   const pollMs = chain.isStudio ? 1_500 : 5_000;
 
   /**
