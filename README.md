@@ -11,8 +11,9 @@ settlement are then computed by ordinary deterministic code from the scores the
 validators agreed on.
 
 **Live app:** <https://grantjudge-app.vercel.app>
-**On chain:** GenLayer Studio Devnet, chain 61997. Addresses in
-[`deployments.json`](deployments.json).
+
+**On chain:** GenLayer Studio Devnet, chain 61997. Addresses and source
+checksums in [`deployments.json`](deployments.json).
 
 | | |
 |---|---|
