@@ -274,28 +274,65 @@ to strand. Both halves of that argument are the same argument.
 
 ## What it looks like running
 
-The whole lifecycle runs on GenLayer Studio Devnet, and the seed script does not
-just write — it reads every number back and asserts it:
+The whole lifecycle runs on GenLayer Studio Devnet. These are real numbers from
+a real run, not a worked example — every one of them read back off the chain
+after it was written.
 
-- a strong proposal wins and is paid
-- two winners split a pool in proportion to their scores, to the wei
-- a proposal above the bar but out of seats keeps its deposit and gets no award
-- a proposal below the bar forfeits its deposit *to the pool*, not to the
-  contract
-- a rejected proposal appeals with real evidence, is re-scored, and is funded out
-  of the remainder — partially, with the shortfall named, because the remainder
-  could not cover the full share
-- another appeals with adjectives, is re-scored, and stays exactly where it was
-- a treasurer cancels an empty round and takes the pool back
-- a proposal the network cannot score is settled as SKIPPED by a stranger and
-  its deposit is returned in full
-- and after the last claim, **the round's locked balance is exactly zero**
+A five GEN round with two seats and a four-out-of-seven bar, four proposals:
+
+```
+#1  testkit    5.20/7.00   FUNDED     2.000000 GEN   (capped at what it asked for)
+#2  indexer    4.76/7.00   FUNDED     2.389558 GEN
+#3  explorer   0.54/7.00   REJECTED   —
+#4  moonshot   0.20/7.00   REJECTED   —
+
+awards + remainder = pool, exactly:  4.389558 + 0.610442 = 5.00 GEN
+```
+
+Then both proposals appealed. The one that added real evidence — milestones
+with months attached, a budget in four lines, a named track record, a risk and
+its mitigation — went from **0.54 to 5.04** and was funded out of the remainder.
+Not fully: the remainder could not cover 0.789558 GEN of its proportional
+share, so it was paid 0.710442 GEN and the shortfall was **named** rather than
+quietly rounded away.
+
+The one that appealed with more adjectives went from 0.20 to **0.20**. The
+contract's own written finding says why: *"10 filler phrases cost it bracket
+room."*
+
+A second round, three GEN, two seats, both proposals above the bar:
+
+```
+#1  typegen    4.48/7.00   FUNDED     1.647059 GEN
+#2  debugger   3.68/7.00   FUNDED     1.352941 GEN
+
+scores 448:368  →  awards 1.647059:1.352941
+```
+
+The ratios match to four decimal places, because they are the same division.
+
+Elsewhere in the run: a treasurer cancelled an empty round and took the whole
+two GEN back; a proposal the network was never asked to score was settled as
+SKIPPED by a stranger with its deposit returned in full; a proposal above the
+bar but out of seats kept its deposit and got no award; and after the last
+claim, **each round's locked balance reached exactly zero**.
 
 That last one is the property I would check first in anybody else's grant
 contract, and the one that is hardest to fake. It is asserted per round rather
 than in aggregate, because an aggregate-only invariant is satisfiable by a
 contract that has quietly moved one round's pool into another's — which is
 precisely the failure a grant platform would be least able to explain.
+
+### And every evaluation settled first time
+
+Eight consensus rounds, eight to twenty-two seconds each, every one agreed on
+the first attempt. Not because the validators returned identical vectors — they
+did not, and the protocol does not ask them to — but because every reading
+landed inside the range the evidence had already earned, on the same side of the
+bar, within the drift bound.
+
+Which is the whole argument, measured: **the bracket is what makes a judgement
+settle.**
 
 ---
 
