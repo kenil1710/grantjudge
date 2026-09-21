@@ -291,12 +291,13 @@ refund it from. Both halves of that argument are the same argument.
 contracts/GrantJudge.py      the contract — every rule documented where it lives
 contracts/GrantConsumer.py   the composability example, custody: false
 contracts/NOTES.md           design notes and the hazards that shaped them
-test/test_logic.py           650+ offline tests — no chain, no network, no model
+test/test_logic.py           657 offline tests — no chain, no network, no model
 test/harness.mjs             shared integration helpers
 test/deploy.mjs              deploys both instances and the consumer
 test/seed.mjs                drives the whole lifecycle on chain and asserts it
+test/topup.mjs               repairs a run that lost a write to the network
 test/fixtures/proposals.json the seeded proposal texts
-tools/audit.py               cross-file audit and the rejection ledger
+tools/audit.py               the cross-file audit and the rejection ledger
 tools/evidence.py            renders docs/EVIDENCE.md from what the seed read back
 frontend/                    the Next.js app
 

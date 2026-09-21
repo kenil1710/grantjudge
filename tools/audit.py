@@ -480,8 +480,21 @@ def main() -> int:
 
     section("22 · the offline suite covers what it claims")
     suite = read("test/test_logic.py")
-    check(suite.count("def test_") >= 300,
-          f"the offline suite has {suite.count('def test_')} tests")
+    count = suite.count("def test_")
+    check(count >= 300, f"the offline suite has {count} tests")
+    # The README and the article both quote the number. A quoted figure that
+    # nothing re-derives is a figure that goes stale the first time somebody
+    # adds a test, and then quietly understates the thing it was meant to
+    # advertise.
+    check(f"{count} offline tests" in readme,
+          f"the README quotes the real test count ({count})")
+    article = read("docs/ARTICLE.md")
+    check(f"{count} offline tests" in article,
+          f"the article quotes the real test count ({count})")
+    # The audit's OWN check count is deliberately not quoted anywhere: a
+    # self-referential count changes as this file grows and would fail on the
+    # commit that added the check that asserts it. The test count is static in
+    # a way this one is not.
     for marker in ("_coherent", "_agrees", "_allocate", "settle_stalled",
                    "contest", "claim_remainder", "GrantConsumer"):
         check(marker in suite, f"the suite exercises {marker}")

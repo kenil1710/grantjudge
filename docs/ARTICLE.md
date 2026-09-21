@@ -327,7 +327,8 @@ because you never mention what anything costs" is a fix.
   you and consults no model.
 - **Source:** <https://github.com/kenil1710/grantjudge>
 
-655 offline tests, 231 cross-file audit checks, and two deployed instances of
+657 offline tests, a cross-file audit that re-derives every number this
+README quotes, and two deployed instances of
 the same source — one enforcing the brief exactly, one with the windows in
 minutes so a whole round can be watched end to end.
 
