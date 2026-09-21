@@ -1,0 +1,656 @@
+{
+  "started_at": "2026-09-21T16:32:43.520Z",
+  "finished_at": "2026-09-21T16:32:43.552Z",
+  "seconds": 0,
+  "note": "Read off the chain by test/collect.mjs. Nothing here came out of a script's memory.",
+  "failures": 0,
+  "checks": [
+    {
+      "ok": true,
+      "label": "FUNDED — a proposal won and was awarded",
+      "detail": "#1 2.3895 GEN, #2 2.0000 GEN, #3 0.7104 GEN, #5 1.3529 GEN, #6 1.6470 GEN, #9 1.5000 GEN"
+    },
+    {
+      "ok": true,
+      "label": "QUALIFIED — above the bar, out of seats, deposit returned",
+      "detail": "#7"
+    },
+    {
+      "ok": true,
+      "label": "REJECTED — below the bar, deposit forfeited to the pool",
+      "detail": "#4 0.20"
+    },
+    {
+      "ok": true,
+      "label": "SKIPPED — the network could not score it, deposit returned in full",
+      "detail": "#8"
+    },
+    {
+      "ok": true,
+      "label": "CONTESTED → WON — re-scored on new evidence and funded",
+      "detail": "#3 0.54 → 5.04"
+    },
+    {
+      "ok": true,
+      "label": "CONTESTED → LOST — re-scored and still below the bar",
+      "detail": "#4 0.20 → 0.20"
+    },
+    {
+      "ok": true,
+      "label": "CANCELLED — a treasurer closed an empty round and took the pool back",
+      "detail": "#1 5.00 GEN, #4 2.00 GEN"
+    },
+    {
+      "ok": true,
+      "label": "PARTIALLY FUNDED — round 3 split in proportion to the scores",
+      "detail": "448:368 → 1.6470:1.3529 GEN"
+    },
+    {
+      "ok": true,
+      "label": "round 2: awards + remainder = pool, exactly",
+      "detail": "5.1000 + 0.-100 = 5.0000 GEN"
+    },
+    {
+      "ok": true,
+      "label": "round 2: everything still locked is somebody's to claim",
+      "detail": "0.2000 locked = 0.0000 unclaimed by proposers + 0.2000 remainder"
+    },
+    {
+      "ok": true,
+      "label": "round 3: awards + remainder = pool, exactly",
+      "detail": "2.9999 + 0.0000 = 3.0000 GEN"
+    },
+    {
+      "ok": true,
+      "label": "round 3: everything still locked is somebody's to claim",
+      "detail": "0.0000 locked = 0.0000 unclaimed by proposers + 0.0000 remainder"
+    },
+    {
+      "ok": true,
+      "label": "round 5: awards + remainder = pool, exactly",
+      "detail": "1.5000 + 0.5000 = 2.0000 GEN"
+    },
+    {
+      "ok": true,
+      "label": "round 5: everything still locked is somebody's to claim",
+      "detail": "0.5000 locked = 0.0000 unclaimed by proposers + 0.5000 remainder"
+    },
+    {
+      "ok": true,
+      "label": "the ledger identity holds on chain",
+      "detail": "balance_wei == locked_wei + payable_wei"
+    },
+    {
+      "ok": true,
+      "label": "balance = locked + payable, recomputed here from the published figures",
+      "detail": "4.7000 = 4.7000 + 0.0000 GEN"
+    },
+    {
+      "ok": true,
+      "label": "every stored evaluation re-derives from its own inputs",
+      "detail": "8/8"
+    },
+    {
+      "ok": true,
+      "label": "evaluations settled",
+      "detail": "8 of 8 attempts (0 inconclusive)"
+    },
+    {
+      "ok": true,
+      "label": "GrantConsumer holds nothing",
+      "detail": "custody false, 0 payable methods"
+    },
+    {
+      "ok": true,
+      "label": "the consumer would admit a grant the judge funded",
+      "detail": "#1 tier STANDARD at 4.76"
+    },
+    {
+      "ok": true,
+      "label": "the consumer refuses a proposal the judge rejected",
+      "detail": "proposal #4 is rejected and was awarded nothing"
+    }
+  ],
+  "deployments": {
+    "network": "studiodev",
+    "chain_id": 61997,
+    "GrantJudge": {
+      "address": "0x94f76435f7D262A1F644A7CFc3c44D4eB3a11171",
+      "deploy_tx": "0x5bfe87cff33f5ef4400650b97e3570bc827dffb590b1c72cac9989ac0d1607f3",
+      "source_bytes": 191539,
+      "owner": "0xfC5fd0367aCEc924B9a28c7847C8f9D81B4f906B",
+      "rubric_version": "1.0.0",
+      "spam_stake_wei": "100000000000000000",
+      "contest_stake_wei": "200000000000000000",
+      "contest_window_s": 86400,
+      "stall_ttl_s": 172800,
+      "round_cooldown_s": 3600,
+      "min_pool_wei": "1000000000000000000",
+      "deployed_at": "2026-09-21T15:15:49.476Z",
+      "source_sha256": "c19f06e69a2c9d6e974e3b22b60d4fd5c44d83908c0aabb707ab3174e51ec603"
+    },
+    "explorer": "https://explorer-studio-dev.genlayer.com/",
+    "GrantJudgeDemo": {
+      "address": "0x22B7Cf0a32357142D289eD70FB3adee927AE80a5",
+      "deploy_tx": "0x62e4942fc34f53ec4c365ac9dcea7a2d125f21d692472727e3203f1a6421366a",
+      "source_bytes": 191539,
+      "owner": "0xfC5fd0367aCEc924B9a28c7847C8f9D81B4f906B",
+      "rubric_version": "1.0.0",
+      "spam_stake_wei": "100000000000000000",
+      "contest_stake_wei": "200000000000000000",
+      "contest_window_s": 300,
+      "stall_ttl_s": 240,
+      "round_cooldown_s": 0,
+      "min_pool_wei": "1000000000000000000",
+      "deployed_at": "2026-09-21T15:15:58.283Z",
+      "source_sha256": "c19f06e69a2c9d6e974e3b22b60d4fd5c44d83908c0aabb707ab3174e51ec603"
+    },
+    "GrantConsumer": {
+      "address": "0x5b6F66B12032778122aD901B7Ae2E588C2f302FB",
+      "deploy_tx": "0x6574d6d0c4c1d3f0efc1a5a01e5384be1ef8a783fc80b33b451ba9bc8d7774a4",
+      "source_bytes": 16610,
+      "judge": "0x22B7Cf0a32357142D289eD70FB3adee927AE80a5",
+      "min_score": 400,
+      "max_age_seconds": 7776000,
+      "owner": "0xfC5fd0367aCEc924B9a28c7847C8f9D81B4f906B",
+      "custody": false,
+      "payable_methods": 0,
+      "deployed_at": "2026-09-21T15:16:06.541Z",
+      "source_sha256": "71fe8e18a7ba01d6e660f8c92cda19f7332c22f589999feeeb99524be0160c37"
+    }
+  },
+  "rounds": [
+    {
+      "round_id": 1,
+      "instance": "GrantJudgeDemo",
+      "name": "GenLayer Ecosystem Growth",
+      "outcome": "CANCELLED",
+      "pool_gen": "5.00",
+      "allocated_gen": "0.00",
+      "funded": 0,
+      "qualified": 0,
+      "rejected": 0,
+      "skipped": 0,
+      "contested": 0,
+      "locked_wei": "0"
+    },
+    {
+      "round_id": 2,
+      "instance": "GrantJudgeDemo",
+      "name": "GenLayer Ecosystem Growth",
+      "outcome": "RANKED",
+      "pool_gen": "5.00",
+      "allocated_gen": "5.10",
+      "funded": 3,
+      "qualified": 0,
+      "rejected": 1,
+      "skipped": 0,
+      "contested": 2,
+      "locked_wei": "200000000000000000"
+    },
+    {
+      "round_id": 3,
+      "instance": "GrantJudgeDemo",
+      "name": "Developer Tooling",
+      "outcome": "RANKED",
+      "pool_gen": "3.00",
+      "allocated_gen": "2.999999999999999999",
+      "funded": 2,
+      "qualified": 0,
+      "rejected": 0,
+      "skipped": 0,
+      "contested": 0,
+      "locked_wei": "1"
+    },
+    {
+      "round_id": 4,
+      "instance": "GrantJudgeDemo",
+      "name": "Security Audits",
+      "outcome": "CANCELLED",
+      "pool_gen": "2.00",
+      "allocated_gen": "0.00",
+      "funded": 0,
+      "qualified": 0,
+      "rejected": 0,
+      "skipped": 0,
+      "contested": 0,
+      "locked_wei": "0"
+    },
+    {
+      "round_id": 5,
+      "instance": "GrantJudgeDemo",
+      "name": "Docs and Translation",
+      "outcome": "RANKED",
+      "pool_gen": "2.00",
+      "allocated_gen": "1.50",
+      "funded": 1,
+      "qualified": 1,
+      "rejected": 0,
+      "skipped": 1,
+      "contested": 0,
+      "locked_wei": "500000000000000000"
+    },
+    {
+      "round_id": 6,
+      "instance": "GrantJudgeDemo",
+      "name": "Q4 Ecosystem Fund",
+      "outcome": "OPEN",
+      "pool_gen": "4.00",
+      "allocated_gen": "0.00",
+      "funded": 0,
+      "qualified": 0,
+      "rejected": 0,
+      "skipped": 0,
+      "contested": 0,
+      "locked_wei": "4000000000000000000"
+    }
+  ],
+  "stats": {
+    "balance_wei": "4700000000000000001",
+    "cancelled_rounds": 2,
+    "chain_balance_wei": "22600000000000000000",
+    "contests": 2,
+    "contests_won": 1,
+    "evaluating_rounds": 0,
+    "evaluation_attempts": 8,
+    "evaluations": 8,
+    "finalized_rounds": 0,
+    "funded_proposals": 6,
+    "identity": "balance_wei == locked_wei + payable_wei",
+    "inconclusive": 0,
+    "ledger_balanced": true,
+    "locked_wei": "4700000000000000001",
+    "open_rounds": 1,
+    "owner": "0xfC5fd0367aCEc924B9a28c7847C8f9D81B4f906B",
+    "paused": false,
+    "payable_wei": "0",
+    "pending_proposals": 0,
+    "proposals": 9,
+    "qualified_proposals": 1,
+    "ranked_rounds": 3,
+    "refusals": 12,
+    "rejected_proposals": 1,
+    "rounds": 6,
+    "rubric_version": "1.0.0",
+    "scored_proposals": 0,
+    "skipped": 1,
+    "skipped_proposals": 1,
+    "total_awarded_gen": "9.599999999999999999",
+    "total_awarded_wei": "9599999999999999999",
+    "total_claimed_wei": "17899999999999999999",
+    "total_forfeited_wei": "300000000000000000",
+    "total_pool_gen": "21.00",
+    "total_pool_wei": "21000000000000000000",
+    "total_refunded_wei": "7000000000000000000",
+    "total_stakes_wei": "900000000000000000",
+    "undelivered_wei": "17899999999999999999"
+  },
+  "demo": {
+    "address": "0x22B7Cf0a32357142D289eD70FB3adee927AE80a5",
+    "rankings": {
+      "round2": {
+        "allocated_wei": "3500000000000000000",
+        "final": true,
+        "found": true,
+        "max_winners": 2,
+        "pending": [],
+        "phase": "SETTLING",
+        "pool_gen": "5.00",
+        "pool_wei": "5000000000000000000",
+        "qualified_count": 3,
+        "remainder_wei": "200000000000000000",
+        "round_id": 2,
+        "rows": [
+          {
+            "author": "0x39a2C45Dc6d790C1C3FDAee58A0854ba27b75645",
+            "award_wei": "2000000000000000000",
+            "band": 5,
+            "content_hash": "882b3d5e618ff1bb",
+            "contest_status": "",
+            "payout_claimed": true,
+            "projected_award_wei": "2000000000000000000",
+            "proposal_id": 2,
+            "qualifies": true,
+            "rank": 1,
+            "requested_gen": "2.00",
+            "requested_wei": "2000000000000000000",
+            "score": 520,
+            "score_text": "5.20",
+            "status": "FUNDED"
+          },
+          {
+            "author": "0xB58Bc9f2aa81F1BB848D92816Ee363c38A79D434",
+            "award_wei": "710441767068273093",
+            "band": 0,
+            "content_hash": "2e760bcf0a67bb70",
+            "contest_status": "WON",
+            "payout_claimed": true,
+            "projected_award_wei": "1500000000000000000",
+            "proposal_id": 3,
+            "qualifies": true,
+            "rank": 2,
+            "requested_gen": "1.50",
+            "requested_wei": "1500000000000000000",
+            "score": 504,
+            "score_text": "5.04",
+            "status": "FUNDED"
+          },
+          {
+            "author": "0x230AA4403713cb34c7fc0CA5188d0a001F284672",
+            "award_wei": "2389558232931726907",
+            "band": 4,
+            "content_hash": "7c19c699a48c1b32",
+            "contest_status": "",
+            "payout_claimed": true,
+            "projected_award_wei": "0",
+            "proposal_id": 1,
+            "qualifies": true,
+            "rank": 3,
+            "requested_gen": "3.00",
+            "requested_wei": "3000000000000000000",
+            "score": 476,
+            "score_text": "4.76",
+            "status": "FUNDED"
+          },
+          {
+            "author": "0x43862f0738E2478fCd687db52c41322c4c09339e",
+            "award_wei": "0",
+            "band": 0,
+            "content_hash": "ea41491ac12dfdb4",
+            "contest_status": "LOST",
+            "payout_claimed": false,
+            "projected_award_wei": "0",
+            "proposal_id": 4,
+            "qualifies": false,
+            "rank": 4,
+            "requested_gen": "1.00",
+            "requested_wei": "1000000000000000000",
+            "score": 20,
+            "score_text": "0.20",
+            "status": "REJECTED"
+          }
+        ],
+        "skipped": [],
+        "status": "RANKED",
+        "threshold": 400,
+        "threshold_text": "4.00",
+        "winner_count": 2,
+        "winner_score_sum": 1024
+      },
+      "round3": {
+        "allocated_wei": "2999999999999999999",
+        "final": true,
+        "found": true,
+        "max_winners": 2,
+        "pending": [],
+        "phase": "SETTLING",
+        "pool_gen": "3.00",
+        "pool_wei": "3000000000000000000",
+        "qualified_count": 2,
+        "remainder_wei": "1",
+        "round_id": 3,
+        "rows": [
+          {
+            "author": "0x230AA4403713cb34c7fc0CA5188d0a001F284672",
+            "award_wei": "1647058823529411764",
+            "band": 4,
+            "content_hash": "8e9d470dac737e84",
+            "contest_status": "",
+            "payout_claimed": true,
+            "projected_award_wei": "1647058823529411764",
+            "proposal_id": 6,
+            "qualifies": true,
+            "rank": 1,
+            "requested_gen": "2.00",
+            "requested_wei": "2000000000000000000",
+            "score": 448,
+            "score_text": "4.48",
+            "status": "FUNDED"
+          },
+          {
+            "author": "0xf99b8Bdf399eB709d6cE125fA7E9598D02b8391e",
+            "award_wei": "1352941176470588235",
+            "band": 3,
+            "content_hash": "f5c75e56d5802009",
+            "contest_status": "",
+            "payout_claimed": true,
+            "projected_award_wei": "1352941176470588235",
+            "proposal_id": 5,
+            "qualifies": true,
+            "rank": 2,
+            "requested_gen": "2.00",
+            "requested_wei": "2000000000000000000",
+            "score": 368,
+            "score_text": "3.68",
+            "status": "FUNDED"
+          }
+        ],
+        "skipped": [],
+        "status": "RANKED",
+        "threshold": 300,
+        "threshold_text": "3.00",
+        "winner_count": 2,
+        "winner_score_sum": 816
+      },
+      "round5": {
+        "allocated_wei": "1500000000000000000",
+        "final": true,
+        "found": true,
+        "max_winners": 1,
+        "pending": [],
+        "phase": "SETTLING",
+        "pool_gen": "2.00",
+        "pool_wei": "2000000000000000000",
+        "qualified_count": 2,
+        "remainder_wei": "500000000000000000",
+        "round_id": 5,
+        "rows": [
+          {
+            "author": "0x43862f0738E2478fCd687db52c41322c4c09339e",
+            "award_wei": "1500000000000000000",
+            "band": 4,
+            "content_hash": "d47e1d542024f43d",
+            "contest_status": "",
+            "payout_claimed": true,
+            "projected_award_wei": "1500000000000000000",
+            "proposal_id": 9,
+            "qualifies": true,
+            "rank": 1,
+            "requested_gen": "1.50",
+            "requested_wei": "1500000000000000000",
+            "score": 466,
+            "score_text": "4.66",
+            "status": "FUNDED"
+          },
+          {
+            "author": "0x39a2C45Dc6d790C1C3FDAee58A0854ba27b75645",
+            "award_wei": "0",
+            "band": 4,
+            "content_hash": "c7cd56e30521aa7e",
+            "contest_status": "",
+            "payout_claimed": true,
+            "projected_award_wei": "0",
+            "proposal_id": 7,
+            "qualifies": true,
+            "rank": 2,
+            "requested_gen": "1.20",
+            "requested_wei": "1200000000000000000",
+            "score": 438,
+            "score_text": "4.38",
+            "status": "QUALIFIED"
+          }
+        ],
+        "skipped": [
+          8
+        ],
+        "status": "RANKED",
+        "threshold": 300,
+        "threshold_text": "3.00",
+        "winner_count": 1,
+        "winner_score_sum": 466
+      }
+    },
+    "verifications": [
+      {
+        "proposal_id": 1,
+        "verified": true,
+        "failed": [],
+        "contest_failed": []
+      },
+      {
+        "proposal_id": 2,
+        "verified": true,
+        "failed": [],
+        "contest_failed": []
+      },
+      {
+        "proposal_id": 3,
+        "verified": true,
+        "failed": [],
+        "contest_failed": []
+      },
+      {
+        "proposal_id": 4,
+        "verified": true,
+        "failed": [],
+        "contest_failed": []
+      },
+      {
+        "proposal_id": 5,
+        "verified": true,
+        "failed": [],
+        "contest_failed": []
+      },
+      {
+        "proposal_id": 6,
+        "verified": true,
+        "failed": [],
+        "contest_failed": []
+      },
+      {
+        "proposal_id": 7,
+        "verified": true,
+        "failed": [],
+        "contest_failed": []
+      },
+      {
+        "proposal_id": 9,
+        "verified": true,
+        "failed": [],
+        "contest_failed": []
+      }
+    ]
+  },
+  "canonical": {
+    "address": "0x94f76435f7D262A1F644A7CFc3c44D4eB3a11171",
+    "open_round": null,
+    "ranked_round": null,
+    "stats": {
+      "balance_wei": "0",
+      "cancelled_rounds": 0,
+      "chain_balance_wei": "0",
+      "contests": 0,
+      "contests_won": 0,
+      "evaluating_rounds": 0,
+      "evaluation_attempts": 0,
+      "evaluations": 0,
+      "finalized_rounds": 0,
+      "funded_proposals": 0,
+      "identity": "balance_wei == locked_wei + payable_wei",
+      "inconclusive": 0,
+      "ledger_balanced": true,
+      "locked_wei": "0",
+      "open_rounds": 0,
+      "owner": "0xfC5fd0367aCEc924B9a28c7847C8f9D81B4f906B",
+      "paused": false,
+      "payable_wei": "0",
+      "pending_proposals": 0,
+      "proposals": 0,
+      "qualified_proposals": 0,
+      "ranked_rounds": 0,
+      "refusals": 0,
+      "rejected_proposals": 0,
+      "rounds": 0,
+      "rubric_version": "1.0.0",
+      "scored_proposals": 0,
+      "skipped": 0,
+      "skipped_proposals": 0,
+      "total_awarded_gen": "0.00",
+      "total_awarded_wei": "0",
+      "total_claimed_wei": "0",
+      "total_forfeited_wei": "0",
+      "total_pool_gen": "0.00",
+      "total_pool_wei": "0",
+      "total_refunded_wei": "0",
+      "total_stakes_wei": "0",
+      "undelivered_wei": "0"
+    }
+  },
+  "consumer": {
+    "address": "0x5b6F66B12032778122aD901B7Ae2E588C2f302FB",
+    "config": {
+      "custody": false,
+      "judge": "0x22B7Cf0a32357142D289eD70FB3adee927AE80a5",
+      "max_age_seconds": 7776000,
+      "max_slots": 500,
+      "min_score": 400,
+      "min_score_text": "4.00",
+      "note": "this contract reads GrantJudge and holds nothing; register_grant reverts on a grant the judge will not vouch for, and preview_grant is the non-reverting form",
+      "owner": "0xfC5fd0367aCEc924B9a28c7847C8f9D81B4f906B",
+      "payable_methods": 0,
+      "registered": 0,
+      "tiers": [
+        {
+          "floor": 0,
+          "name": "PROVISIONAL"
+        },
+        {
+          "floor": 450,
+          "name": "STANDARD"
+        },
+        {
+          "floor": 550,
+          "name": "PRIORITY"
+        },
+        {
+          "floor": 620,
+          "name": "FLAGSHIP"
+        }
+      ],
+      "total_award_wei": "0"
+    },
+    "registry": {
+      "count": 0,
+      "grants": [],
+      "total_award_wei": "0"
+    },
+    "preview_funded": {
+      "already_registered": false,
+      "award_wei": "2389558232931726907",
+      "max_age_seconds": 7776000,
+      "min_score": 400,
+      "min_score_text": "4.00",
+      "proposal_id": 1,
+      "reason": "",
+      "round_id": 2,
+      "score": 476,
+      "score_text": "4.76",
+      "tier": "STANDARD",
+      "would_register": true
+    },
+    "preview_rejected": {
+      "already_registered": false,
+      "award_wei": "0",
+      "max_age_seconds": 7776000,
+      "min_score": 400,
+      "min_score_text": "4.00",
+      "proposal_id": 4,
+      "reason": "proposal #4 is rejected and was awarded nothing",
+      "round_id": 2,
+      "score": 0,
+      "score_text": "0.00",
+      "tier": "",
+      "would_register": false
+    }
+  }
+}

@@ -513,7 +513,31 @@ def main() -> int:
                    "contest", "claim_remainder", "GrantConsumer"):
         check(marker in suite, f"the suite exercises {marker}")
 
-    section("23 · known discrepancies are documented, not hidden")
+    section("23 · methods that read the clock AND move value")
+    # MEASURED, NOT THEORISED (docs/PROBE.md §4b). Studio Dev's fee simulator
+    # runs with a block timestamp roughly 664 days stale, so a method that reads
+    # `gl.message.raw["datetime"]` is simulated on the wrong side of its own time
+    # gate. If it would also have posted a value transfer, the simulation refuses
+    # instead, the estimator budgets nothing for the message, and the real
+    # transaction reverts with `out_of message_fee total`.
+    #
+    # This is a WARNING SURFACE rather than a prohibition: the combination is
+    # sometimes exactly right (claim_remainder must check the appeal window and
+    # must pay). The check exists so the next contract meets it at build time
+    # rather than as a reverted transaction, and so the count cannot grow
+    # unnoticed.
+    clocked_payers = []
+    for m in writes:
+        body = ast.unparse(m)
+        if "self._now()" in body and "_settle_payout" in body:
+            clocked_payers.append(m.name)
+    check(sorted(clocked_payers) == ["claim_remainder"],
+          "exactly one write both reads the block clock and posts a transfer "
+          f"{sorted(clocked_payers)} — see docs/PROBE.md §4b")
+    check("stale clock" in read("docs/PROBE.md"),
+          "PROBE.md records why that combination cannot be fee-estimated")
+
+    section("24 · known discrepancies are documented, not hidden")
     notes = read("contracts/NOTES.md")
     # The deployed header's rule 10 still lists the band among the fields
     # compared exactly, which `_agrees` no longer does. The bytes cannot be
@@ -531,7 +555,7 @@ def main() -> int:
           "the header/_agrees discrepancy about the band is recorded in NOTES.md")
     check("Erratum" in notes, "NOTES.md carries the erratum section")
 
-    section("24 · the documentation the README points at exists")
+    section("25 · the documentation the README points at exists")
     for rel in ("contracts/NOTES.md", "docs/PROBE.md", "docs/ARTICLE.md",
                 "docs/WORKED-EXAMPLE.md", "tools/evidence.py",
                 "tools/worked_example.py"):

@@ -27,10 +27,17 @@ const dep = JSON.parse(readFileSync(new URL("../deployments.json", import.meta.u
 
 const GEN = 10n ** 18n;
 const gen = (wei) => {
-  const n = BigInt(String(wei ?? "0"));
+  // Signed, because a round whose appeal was paid out of forfeited deposits
+  // has an allocated figure ABOVE its pool and a (remainder - forfeited) below
+  // zero. The identity still holds; the first version of this helper just
+  // printed it as "0.-100", which is the sort of thing that makes a reader
+  // distrust a number that is in fact correct.
+  let n = BigInt(String(wei ?? "0"));
+  const sign = n < 0n ? "-" : "";
+  if (n < 0n) n = -n;
   const whole = n / GEN;
   const frac = (n % GEN).toString().padStart(18, "0").slice(0, 4);
-  return `${whole}.${frac}`;
+  return `${sign}${whole}.${frac}`;
 };
 
 const checks = [];

@@ -435,12 +435,29 @@ this contract, and it is **reported rather than hidden** — `get_stats` publish
 the contract's real chain balance beside its own books and names the gap
 `undelivered_wei`. On a network that delivers, that number is zero.
 
-It was confirmed again on this deployment, from the outside: after a treasurer
-cancelled an empty round and swept the refund, the contract's real balance read
-**15.6 GEN** while its own books said 13.6 — the 2 GEN difference being exactly
-the refund whose queued transfer never executed. The books are right about who
+Confirmed again on this deployment, from the outside. At the end of the seed run
+the contract's real balance read **22.6 GEN** while its own books said **4.7** —
+and `balance = locked + payable` held exactly. The 17.9 GEN difference is every
+payout the network queued and declined to execute. The books are right about who
 owns what; the chain is right about where the wei is; and the contract publishes
 both rather than choosing one.
+
+### And one thing the estimator gets wrong
+
+`claim_remainder` is the only method in this contract that both reads the block
+clock and posts a transfer — and it is the only one whose fee estimate is wrong
+on Studio Dev, because the fee **simulator runs on a clock roughly 664 days
+stale** and therefore simulates the call on the wrong side of its own appeal
+window. It refuses in simulation, the estimator budgets nothing for a message
+the real execution does post, and the transaction reverts with
+`out_of message_fee total`.
+
+The money is not lost: it stays locked against its round, `get_round` publishes
+it, and `docs/EVIDENCE.md` carries the passing check *"everything still locked is
+somebody's to claim"*. The measurement, the exact correlation and the five
+different errors that hand-budgeting produced are in
+[`docs/PROBE.md` §4b](docs/PROBE.md), and `tools/audit.py` now flags the
+clock-plus-transfer combination so the next contract meets it at build time.
 
 ---
 

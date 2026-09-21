@@ -171,6 +171,78 @@ which reads like a contract fault and is not one.
 
 ---
 
+## 4b. Studio Dev's fee simulator runs on a stale clock, and that breaks fee
+##     estimation for any method that reads the block time AND moves value
+
+**This is the most useful thing measured in this project, and it took a failing
+transaction to find.**
+
+`claim_remainder` reverted on chain with
+
+```
+out_of message_fee total # internal
+```
+
+while `claim_award` and `claim_payout` — which run the *same* internal payment
+path, `_hand_over` → `_settle_payout` → `_pay` — succeeded nine times between
+them. The estimate for `claim_remainder` came back with `totalMessageFees: 0`
+and no `messageAllocations`, every time, on four consecutive attempts.
+
+**The cause, read directly out of the simulator.** `simulateWriteContract` on
+that call returns the contract's own refusal:
+
+```
+status  REJECTED
+reason  the appeal window for round #3 is still open for 57403196s
+```
+
+57,403,196 seconds is **664 days**. The fee simulation runs with a block
+timestamp roughly two years stale, so `claim_remainder` is simulated on the
+wrong side of its own time gate. It refuses, emits no transfer, and the
+estimator therefore budgets nothing for a message the real execution does post.
+
+**The correlation is exact.** Of GrantJudge's twelve public writes:
+
+| | reads the block clock | posts a transfer | estimate correct |
+|---|---|---|---|
+| `claim_award`, `claim_payout` | no | yes | **yes** |
+| `create_round`, `submit_proposal`, `cancel_round`, `evaluate`, `finalize`, `contest`, `settle_stalled` | yes | no | yes (nothing to budget) |
+| `set_paused`, `transfer_ownership` | no | no | yes |
+| **`claim_remainder`** | **yes** | **yes** | **no** |
+
+Exactly one method has both properties, and exactly that method cannot be fee-
+estimated on this network.
+
+**What it is not.** It is not a contract bug. The contract refuses correctly
+given the time it is shown; the real transaction computes the right answer and
+posts the right message; and the money is not lost — it stays locked against
+its round, is published by `get_round`, and is claimable the moment the estimate
+is right. `docs/EVIDENCE.md` shows those rounds with their remainders still
+locked and the check *"everything still locked is somebody's to claim"* passing.
+
+**Working around it by hand did not succeed**, and the sequence of errors is
+worth recording for anybody who tries:
+
+| what was supplied | what the node said |
+|---|---|
+| the estimate unchanged | `out_of message_fee total # internal` |
+| `totalMessageFees` raised, no allocations | `Mode1MessageFeesRequireGenVMPerEmissionSupport` |
+| an allocation with `feeParams: "0x"` | `InvalidFeeParams` |
+| an allocation with `encodeInternalMessageFeeParams(...)` | `AllocationLifecycleBudgetInsufficient` |
+| the same, with the budget raised 1×, 10×, 50×, 100×, 1000×, 5000× | `AllocationLifecycleBudgetInsufficient` |
+
+The last row is the informative one: the refusal is structural, not a matter of
+magnitude.
+
+**The lesson for anyone building on GenLayer.** If a method both reads
+`gl.message.raw["datetime"]` and posts a value transfer, its fee estimate on
+Studio Dev will be wrong whenever the stale clock puts the simulation on the
+other side of a time gate. `tools/audit.py` now flags that combination, so a
+future contract meets this as a warning at build time rather than as a reverted
+transaction.
+
+---
+
 ## 5. The v0.6 contract format, confirmed by deploying
 
 The two-line runner header is exactly:
