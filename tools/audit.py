@@ -513,7 +513,25 @@ def main() -> int:
                    "contest", "claim_remainder", "GrantConsumer"):
         check(marker in suite, f"the suite exercises {marker}")
 
-    section("23 · the documentation the README points at exists")
+    section("23 · known discrepancies are documented, not hidden")
+    notes = read("contracts/NOTES.md")
+    # The deployed header's rule 10 still lists the band among the fields
+    # compared exactly, which `_agrees` no longer does. The bytes cannot be
+    # edited without invalidating the deployment this repository claims to be
+    # the source of, so the discrepancy is written down instead — and this
+    # check makes sure it stays written down.
+    agrees_body = ast.unparse(next(
+        n for n in ast.walk(tree)
+        if isinstance(n, ast.FunctionDef) and n.name == "_agrees"))
+    band_in_agrees = '"band"' in agrees_body or "'band'" in agrees_body
+    header = "\n".join(contract.split("\n")[:160])
+    band_in_header = "the band, the qualification flag" in header
+    check(not band_in_agrees, "_agrees does not compare the band")
+    check(not (band_in_header and band_in_agrees is False) or "Erratum" in notes,
+          "the header/_agrees discrepancy about the band is recorded in NOTES.md")
+    check("Erratum" in notes, "NOTES.md carries the erratum section")
+
+    section("24 · the documentation the README points at exists")
     for rel in ("contracts/NOTES.md", "docs/PROBE.md", "docs/ARTICLE.md",
                 "docs/WORKED-EXAMPLE.md", "tools/evidence.py",
                 "tools/worked_example.py"):

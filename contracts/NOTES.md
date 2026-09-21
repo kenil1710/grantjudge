@@ -83,6 +83,35 @@ forged band is still impossible — and left out of `_agrees`, where only an
 accidental one was ever being caught. The weighted total's drift is bounded
 separately and the band is a pure function of it.
 
+### Erratum in the deployed header, and why it is still there
+
+Rule 10 in `GrantJudge.py`'s own header says:
+
+> every CONSEQUENCE of the vector is compared EXACTLY: **the band**, the
+> qualification flag, the completeness count and the drift of the weighted
+> total.
+
+That sentence was written before the band was taken off `_agrees`, and it is now
+imprecise in a way worth stating rather than quietly leaving for a reader to
+reconcile:
+
+- **The band IS still compared exactly — in `_coherent`,** which every validator
+  runs on the leader's payload before it votes. No leader can store a band that
+  does not derive from its own vector. That part is true.
+- **The band is NOT part of `_agrees`,** so two validators are not required to
+  land in the same band. `_agrees`'s own docstring says so, at length, three
+  hundred lines further down the same file.
+- "the drift of the weighted total is compared exactly" is loose phrasing
+  either way: a drift is compared against a bound, not for equality.
+
+The header is not being edited, and the reason is a property worth more than the
+sentence: **the bytes in this repository are the bytes on chain.**
+`deployments.json` records the sha256 of the deployed source and
+`tools/audit.py` recomputes it, so a one-word comment fix fails the audit until
+the contract is redeployed — which would throw away every seeded round the
+evidence document describes. The wording is corrected in the next deployment;
+until then this note is the correction.
+
 ### Where 70 comes from
 
 `MAX_TOTAL_DRIFT` is not a feel. One bucket on every criterion is
