@@ -322,6 +322,7 @@ tools/audit.py               the cross-file audit and the rejection ledger
 tools/evidence.py            renders docs/EVIDENCE.md from what the seed read back
 tools/worked_example.py      renders docs/WORKED-EXAMPLE.md from the contract itself
 tools/verify.sh              the short loop: everything that costs no transaction
+tools/finish.sh              settle what is open, read the chain, render the evidence
 .github/workflows/checks.yml the same short loop, on every push
 frontend/                    the Next.js app
 
