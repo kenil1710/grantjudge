@@ -1,0 +1,199 @@
+@import "tailwindcss";
+
+/*
+ * GrantJudge — deep emerald and warm gold.
+ *
+ * The palette is a treasury, not a dashboard: dark forest green so that money
+ * numbers in gold are the brightest thing on any page, and one accent per
+ * meaning so that a status is legible without reading the word. Every colour
+ * below is used somewhere and nothing here is decoration.
+ */
+:root {
+  --bg: #0a1f1a;
+  --bg-deep: #061512;
+  --surface: #122b24;
+  --surface-2: #17362d;
+  --line: #1f4a3d;
+  --line-soft: #1a3b31;
+
+  --gold: #d4a847;
+  --gold-bright: #ffd700;
+  --gold-dim: #8a6f2e;
+  --cream: #f5efe0;
+  --cream-dim: #b9b3a5;
+  --muted: #7d8f88;
+
+  --emerald: #10b981;
+  --teal: #3aafa9;
+  --amber: #e8a838;
+  --rose: #c97070;
+
+  --radius: 14px;
+  --shadow-gold: 0 0 0 1px rgba(212, 168, 71, 0.18), 0 18px 45px -22px rgba(212, 168, 71, 0.4);
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-bg-deep: var(--bg-deep);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-line: var(--line);
+  --color-line-soft: var(--line-soft);
+  --color-gold: var(--gold);
+  --color-gold-bright: var(--gold-bright);
+  --color-gold-dim: var(--gold-dim);
+  --color-cream: var(--cream);
+  --color-cream-dim: var(--cream-dim);
+  --color-muted: var(--muted);
+  --color-emerald: var(--emerald);
+  --color-teal: var(--teal);
+  --color-amber: var(--amber);
+  --color-rose: var(--rose);
+  --font-serif: var(--font-serif);
+  --font-sans: var(--font-sans);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+  /* Mobile: never a horizontal scrollbar, at any width. */
+  overflow-x: hidden;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--cream);
+  font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+
+h1, h2, h3, .serif {
+  font-family: var(--font-serif), ui-serif, Georgia, serif;
+  font-weight: 400;
+  letter-spacing: -0.015em;
+}
+
+::selection {
+  background: rgba(212, 168, 71, 0.28);
+  color: var(--cream);
+}
+
+/* --- scrollbar ------------------------------------------------------- */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: var(--bg-deep); }
+::-webkit-scrollbar-thumb {
+  background: var(--line);
+  border-radius: 8px;
+  border: 2px solid var(--bg-deep);
+}
+::-webkit-scrollbar-thumb:hover { background: var(--gold-dim); }
+
+/* --- shared surfaces -------------------------------------------------- */
+.card {
+  background: linear-gradient(180deg, var(--surface) 0%, #0f251f 100%);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius);
+  transition: border-color 180ms ease, transform 180ms ease, box-shadow 180ms ease;
+}
+
+.card-hover:hover {
+  border-color: rgba(212, 168, 71, 0.42);
+  transform: translateY(-3px);
+  box-shadow: var(--shadow-gold);
+}
+
+.gold-rule {
+  background: linear-gradient(90deg, transparent, rgba(212, 168, 71, 0.5), transparent);
+  height: 1px;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  border-radius: 10px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  padding: 0.65rem 1.1rem;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: all 160ms ease;
+  white-space: nowrap;
+}
+
+.btn-primary {
+  background: linear-gradient(180deg, #e2b65a, var(--gold));
+  color: #24190a;
+  border-color: rgba(255, 215, 0, 0.5);
+}
+.btn-primary:hover:not(:disabled) {
+  filter: brightness(1.08);
+  box-shadow: 0 10px 30px -14px rgba(212, 168, 71, 0.9);
+}
+
+.btn-ghost {
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--cream);
+  border-color: var(--line);
+}
+.btn-ghost:hover:not(:disabled) {
+  border-color: rgba(212, 168, 71, 0.45);
+  background: rgba(212, 168, 71, 0.08);
+}
+
+.btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.input, .textarea, .select {
+  width: 100%;
+  background: rgba(0, 0, 0, 0.28);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  color: var(--cream);
+  padding: 0.65rem 0.8rem;
+  font-size: 0.92rem;
+  font-family: inherit;
+  transition: border-color 150ms ease, box-shadow 150ms ease;
+}
+.input:focus, .textarea:focus, .select:focus {
+  outline: none;
+  border-color: rgba(212, 168, 71, 0.6);
+  box-shadow: 0 0 0 3px rgba(212, 168, 71, 0.12);
+}
+.input::placeholder, .textarea::placeholder { color: #5f7169; }
+
+.mono {
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+  font-size: 0.82em;
+}
+
+/* --- skeletons -------------------------------------------------------- */
+@keyframes shimmer {
+  0% { background-position: -420px 0; }
+  100% { background-position: 420px 0; }
+}
+.skeleton {
+  background: linear-gradient(90deg, #12281f 0%, #1b3a30 40%, #12281f 80%);
+  background-size: 840px 100%;
+  animation: shimmer 1.4s infinite linear;
+  border-radius: 8px;
+}
+
+/* --- pulse for a live/pending marker ---------------------------------- */
+@keyframes softpulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.45; }
+}
+.pulse { animation: softpulse 2s ease-in-out infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  .pulse, .skeleton { animation: none; }
+  html { scroll-behavior: auto; }
+}

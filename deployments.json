@@ -1,0 +1,49 @@
+{
+  "deployments": {
+    "studiodev": {
+      "network": "studiodev",
+      "chain_id": 61997,
+      "GrantJudge": {
+        "address": "0x94f76435f7D262A1F644A7CFc3c44D4eB3a11171",
+        "deploy_tx": "0x5bfe87cff33f5ef4400650b97e3570bc827dffb590b1c72cac9989ac0d1607f3",
+        "source_bytes": 191539,
+        "owner": "0xfC5fd0367aCEc924B9a28c7847C8f9D81B4f906B",
+        "rubric_version": "1.0.0",
+        "spam_stake_wei": "100000000000000000",
+        "contest_stake_wei": "200000000000000000",
+        "contest_window_s": 86400,
+        "stall_ttl_s": 172800,
+        "round_cooldown_s": 3600,
+        "min_pool_wei": "1000000000000000000",
+        "deployed_at": "2026-09-21T15:15:49.476Z"
+      },
+      "explorer": "https://explorer-studio-dev.genlayer.com/",
+      "GrantJudgeDemo": {
+        "address": "0x22B7Cf0a32357142D289eD70FB3adee927AE80a5",
+        "deploy_tx": "0x62e4942fc34f53ec4c365ac9dcea7a2d125f21d692472727e3203f1a6421366a",
+        "source_bytes": 191539,
+        "owner": "0xfC5fd0367aCEc924B9a28c7847C8f9D81B4f906B",
+        "rubric_version": "1.0.0",
+        "spam_stake_wei": "100000000000000000",
+        "contest_stake_wei": "200000000000000000",
+        "contest_window_s": 300,
+        "stall_ttl_s": 240,
+        "round_cooldown_s": 0,
+        "min_pool_wei": "1000000000000000000",
+        "deployed_at": "2026-09-21T15:15:58.283Z"
+      },
+      "GrantConsumer": {
+        "address": "0x5b6F66B12032778122aD901B7Ae2E588C2f302FB",
+        "deploy_tx": "0x6574d6d0c4c1d3f0efc1a5a01e5384be1ef8a783fc80b33b451ba9bc8d7774a4",
+        "source_bytes": 16610,
+        "judge": "0x22B7Cf0a32357142D289eD70FB3adee927AE80a5",
+        "min_score": 400,
+        "max_age_seconds": 7776000,
+        "owner": "0xfC5fd0367aCEc924B9a28c7847C8f9D81B4f906B",
+        "custody": false,
+        "payable_methods": 0,
+        "deployed_at": "2026-09-21T15:16:06.541Z"
+      }
+    }
+  }
+}
