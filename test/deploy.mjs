@@ -27,6 +27,7 @@
  * a reason that looks like a contract bug.
  */
 import { readFileSync, writeFileSync, existsSync } from "node:fs";
+import { createHash } from "node:crypto";
 import { createClient, createAccount } from "genlayer-js";
 import { CHAINS, argOf, accounts, fundOnStudio, deploy, gen } from "./harness.mjs";
 
@@ -36,6 +37,21 @@ if (!chain) throw new Error(`unknown network ${networkName}`);
 
 const both = process.argv.includes("--both");
 const demoOnly = process.argv.includes("--demo");
+
+/**
+ * The checksum of the bytes being deployed.
+ *
+ * Recorded so that "the source in this repository is the source on chain" is
+ * something a reader can CHECK with one command rather than something the
+ * README asserts:
+ *
+ *     shasum -a 256 contracts/GrantJudge.py
+ *
+ * `tools/audit.py` re-computes it on every run, so a one-word comment edit
+ * fails the audit until the contract is redeployed. That strictness is the
+ * whole value of the field.
+ */
+const sha256 = (buf) => createHash("sha256").update(buf).digest("hex");
 
 /** `RUBRIC_VERSION` as the contract itself declares it. */
 function rubricVersion(source) {
@@ -119,6 +135,7 @@ for (const name of wanted) {
     address: res.address,
     deploy_tx: res.hash,
     source_bytes: code.length,
+    source_sha256: sha256(code),
     owner: account.address,
     // READ OUT OF THE SOURCE, never retyped here. A hardcoded version string
     // silently recorded the wrong rubric the first time a previous project's
@@ -161,6 +178,7 @@ if (both && judge) {
     address: res.address,
     deploy_tx: res.hash,
     source_bytes: consumerCode.length,
+    source_sha256: sha256(consumerCode),
     judge,
     min_score: consumerArgs[1],
     max_age_seconds: consumerArgs[2],

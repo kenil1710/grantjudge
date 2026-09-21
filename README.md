@@ -325,6 +325,22 @@ npm run dev
 
 ---
 
+## Verifying the deployed bytes
+
+`deployments.json` records the checksum of the source that was deployed, so
+"the source in this repository is the source on chain" is something you can
+check rather than something this README asserts:
+
+```bash
+shasum -a 256 contracts/GrantJudge.py contracts/GrantConsumer.py
+python3 -c "import json;d=json.load(open('deployments.json'))['deployments']['studiodev'];\
+print({k:v.get('source_sha256') for k,v in d.items() if isinstance(v,dict)})"
+```
+
+`tools/audit.py` re-computes both on every run, which means a one-word comment
+edit in the contract fails the audit until the contract is redeployed. That
+strictness is the whole value of the field.
+
 ## Two deployed instances, same source
 
 The **canonical** instance enforces the brief: a 24-hour appeal window, a

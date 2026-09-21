@@ -15,7 +15,8 @@
         "stall_ttl_s": 172800,
         "round_cooldown_s": 3600,
         "min_pool_wei": "1000000000000000000",
-        "deployed_at": "2026-09-21T15:15:49.476Z"
+        "deployed_at": "2026-09-21T15:15:49.476Z",
+        "source_sha256": "c19f06e69a2c9d6e974e3b22b60d4fd5c44d83908c0aabb707ab3174e51ec603"
       },
       "explorer": "https://explorer-studio-dev.genlayer.com/",
       "GrantJudgeDemo": {
@@ -30,7 +31,8 @@
         "stall_ttl_s": 240,
         "round_cooldown_s": 0,
         "min_pool_wei": "1000000000000000000",
-        "deployed_at": "2026-09-21T15:15:58.283Z"
+        "deployed_at": "2026-09-21T15:15:58.283Z",
+        "source_sha256": "c19f06e69a2c9d6e974e3b22b60d4fd5c44d83908c0aabb707ab3174e51ec603"
       },
       "GrantConsumer": {
         "address": "0x5b6F66B12032778122aD901B7Ae2E588C2f302FB",
@@ -42,7 +44,8 @@
         "owner": "0xfC5fd0367aCEc924B9a28c7847C8f9D81B4f906B",
         "custody": false,
         "payable_methods": 0,
-        "deployed_at": "2026-09-21T15:16:06.541Z"
+        "deployed_at": "2026-09-21T15:16:06.541Z",
+        "source_sha256": "71fe8e18a7ba01d6e660f8c92cda19f7332c22f589999feeeb99524be0160c37"
       }
     }
   }

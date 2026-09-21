@@ -26,6 +26,7 @@ Exit code 1 on any failure, so it can gate a commit.
 from __future__ import annotations
 
 import ast
+import hashlib
 import io
 import json
 import pathlib
@@ -441,11 +442,21 @@ def main() -> int:
                 # somebody would want to verify it.
                 check(dep[name].get("source_bytes") == len(contract.encode("utf8")),
                       f"{name} records the byte length of the source on disk")
+                check(dep[name].get("source_sha256")
+                      == hashlib.sha256(
+                          (ROOT / "contracts/GrantJudge.py").read_bytes()
+                      ).hexdigest(),
+                      f"{name} records the checksum of the source on disk")
         if "GrantConsumer" in dep:
             check(dep["GrantConsumer"].get("custody") is False,
                   "GrantConsumer is recorded with custody false")
             check(dep["GrantConsumer"].get("payable_methods") == 0,
                   "GrantConsumer is recorded with zero payable methods")
+            check(dep["GrantConsumer"].get("source_sha256")
+                  == hashlib.sha256(
+                      (ROOT / "contracts/GrantConsumer.py").read_bytes()
+                  ).hexdigest(),
+                  "GrantConsumer records the checksum of the source on disk")
             check(dep["GrantConsumer"].get("judge") in
                   (dep.get("GrantJudgeDemo", {}).get("address"),
                    dep.get("GrantJudge", {}).get("address")),
