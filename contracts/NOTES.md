@@ -298,3 +298,23 @@ hung an eleven-account funding loop with nothing in the log and made an
 unanswered HTTP request look like a contract problem. It is now bounded,
 retried, non-fatal, and skipped entirely for an account that already has a
 balance.
+
+And then the same shape a third time, at the cost of a whole seeded round. A
+`create_round` settled in **313 seconds** against a 300-second client give-up.
+The script had no round id, filed its three proposals into round `0`, and every
+one was correctly refused with the stake returned. The contract was perfect
+throughout; the client's patience was the bug.
+
+> A write that lands after the client stopped watching leaves the SCRIPT wrong
+> about the chain — and every number it then reports is measured against a world
+> that is not the one on chain.
+
+The deadline is now 900 seconds, and a create that still comes back unsettled is
+no longer treated as a failure: `findRound` asks the chain whether the round
+exists, by treasurer and name, before anything downstream believes it does.
+
+The more durable lesson is `test/collect.mjs`, which was written in response.
+The evidence document is now derived by READING the chain rather than by
+remembering what a script did, so a run that falls over near the end still
+produces an honest record of whatever actually landed. Three variations of one
+mistake were enough to make the point: **a script's memory is not evidence.**
