@@ -515,11 +515,22 @@ def main() -> int:
 
     section("23 · the documentation the README points at exists")
     for rel in ("contracts/NOTES.md", "docs/PROBE.md", "docs/ARTICLE.md",
-                "tools/evidence.py"):
+                "docs/WORKED-EXAMPLE.md", "tools/evidence.py",
+                "tools/worked_example.py"):
         check((ROOT / rel).exists(), f"{rel} exists")
-    for rel in ("contracts/NOTES.md", "docs/PROBE.md", "docs/ARTICLE.md"):
+    for rel in ("contracts/NOTES.md", "docs/PROBE.md", "docs/ARTICLE.md",
+                "docs/WORKED-EXAMPLE.md"):
         check(rel.split("/")[-1] in readme or rel in readme,
               f"the README points at {rel}")
+    # The worked example is GENERATED from the contract, so a rubric change that
+    # was not re-rendered leaves a document explaining a rubric that no longer
+    # exists. Re-rendering it here and comparing is the only way to notice.
+    import subprocess
+    rendered = (ROOT / "docs" / "WORKED-EXAMPLE.md").read_text(encoding="utf8")
+    subprocess.run([sys.executable, str(ROOT / "tools" / "worked_example.py")],
+                   capture_output=True, check=False)
+    check((ROOT / "docs" / "WORKED-EXAMPLE.md").read_text(encoding="utf8") == rendered,
+          "WORKED-EXAMPLE.md is current with the contract that generated it")
     # EVIDENCE.md is GENERATED, so its absence before a seed run is correct and
     # its presence must mean a run happened.
     evidence = ROOT / "docs" / "EVIDENCE.md"

@@ -107,6 +107,12 @@ ladder, and `preview_proposal` runs a draft through the same code with no
 transaction and no model so a proposer can see their own ceiling before staking
 anything.
 
+**[docs/WORKED-EXAMPLE.md](docs/WORKED-EXAMPLE.md)** walks three real filings —
+a strong one, a thin one and one made of adjectives — from text to signals to
+brackets to the weighted total, with every number computed by importing the
+contract rather than typed in. It is the shortest path to understanding the
+whole model, including what an appeal does and does not buy.
+
 ### The vector, and what the validators compare
 
 Each node returns:
@@ -299,8 +305,10 @@ test/topup.mjs               repairs a run that lost a write to the network
 test/fixtures/proposals.json the seeded proposal texts
 tools/audit.py               the cross-file audit and the rejection ledger
 tools/evidence.py            renders docs/EVIDENCE.md from what the seed read back
+tools/worked_example.py      renders docs/WORKED-EXAMPLE.md from the contract itself
 frontend/                    the Next.js app
 
+docs/WORKED-EXAMPLE.md       three filings, scored, with every number computed
 docs/PROBE.md                what was measured against the live network
 docs/EVIDENCE.md             what the seed run actually did, generated not typed
 docs/ARTICLE.md              the write-up
