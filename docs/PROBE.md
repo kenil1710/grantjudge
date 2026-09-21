@@ -52,14 +52,34 @@ evaluating…
 ```
 
 **What this establishes.** The consensus design settles with real validators
-running real model calls: a five-dimension vector, compared with a one-bucket
-tolerance per dimension and exact agreement on the qualification flag, reached
-agreement on the first attempt. The stored vector re-derived from storage
-(`verify_evaluation` returned `verified: true`).
+running real model calls: a five- or six-dimension vector, compared with a
+one-bucket tolerance per dimension and exact agreement on the qualification
+flag, reached agreement on the first attempt.
 
-**What it does not establish.** One observation is not a settlement rate. The
-seed run records `attempts` per proposal for exactly this reason — see
-`docs/EVIDENCE.md`.
+**And then it did it again, eight times.** Every evaluation in the seed run
+settled on its FIRST attempt, in 8 to 22 seconds each:
+
+| proposal | agreed vector | weighted total | against the bar |
+|---|---|---|---|
+| indexer | `4,5,5,5` q6 c4 | 4.76 | clears 4.00 |
+| testkit | `6,5,4,6` q6 c4 | 5.20 | clears 4.00 |
+| explorer | `1,0,0,0` q1 c2 | 0.54 | below 4.00 |
+| moonshot | `0,0,0,0` q0 c2 | 0.20 | below 4.00 |
+| explorer, on appeal | — | 5.04 | clears 4.00 |
+| moonshot, on appeal | — | 0.20 | below 4.00 |
+| debugger | `3,4,4` | 3.68 | clears 3.00 |
+| typegen | `4,5,4` | 4.48 | clears 3.00 |
+
+That is the bracketing doing its job. The scores are not identical across
+validators — they cannot be, and the protocol does not ask them to be — but
+every reading landed inside the range the evidence had already earned, on the
+same side of the bar, within the drift bound.
+
+**What it does not establish.** Eight observations are not a settlement rate
+either, and every one of these proposals sits comfortably away from its
+threshold. A proposal whose honest score straddles the bar SHOULD fail to
+settle, repeatedly, and be retried — that is rule 10 working, not breaking. The
+seed records `attempts` per proposal so that when it happens it is visible.
 
 ---
 
