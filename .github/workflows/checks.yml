@@ -1,0 +1,73 @@
+name: checks
+
+# The short loop, on every push: the offline suite, the repository audit, the
+# GenVM lint and the frontend build. None of it costs a transaction, so it can
+# run on a fork with no keys and no network access to a chain.
+#
+# The LONG loop — `node test/seed.mjs`, which drives a whole lifecycle through
+# real consensus rounds — is deliberately not here. It takes half an hour of
+# wall clock, needs a funded account on Studio Dev, and its output is
+# docs/EVIDENCE.md, which is committed.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  offline:
+    name: contract, tests and audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: offline suite (stdlib only, no chain, no network, no model)
+        run: python3 test/test_logic.py
+
+      - name: repository audit and the rejection ledger
+        run: python3 tools/audit.py
+
+      - name: the worked example is current with the contract
+        run: |
+          python3 tools/worked_example.py
+          git diff --exit-code docs/WORKED-EXAMPLE.md
+
+      - name: GenVM lint
+        run: |
+          python3 -m pip install --quiet genvm-linter
+          genvm-lint lint contracts/GrantJudge.py
+          genvm-lint lint contracts/GrantConsumer.py
+
+  frontend:
+    name: frontend typecheck and build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - run: npm ci
+        working-directory: frontend
+
+      - run: npx tsc --noEmit
+        working-directory: frontend
+
+      # The addresses are public and the build only needs them to be well
+      # formed; the app reads everything else off the chain at runtime.
+      - name: build
+        working-directory: frontend
+        env:
+          NEXT_PUBLIC_GENLAYER_NETWORK: studio-dev
+          NEXT_PUBLIC_CONTRACT_ADDRESS: "0x22B7Cf0a32357142D289eD70FB3adee927AE80a5"
+          NEXT_PUBLIC_CANONICAL_ADDRESS: "0x94f76435f7D262A1F644A7CFc3c44D4eB3a11171"
+          NEXT_PUBLIC_CONSUMER_ADDRESS: "0x5b6F66B12032778122aD901B7Ae2E588C2f302FB"
+        run: npx next build
