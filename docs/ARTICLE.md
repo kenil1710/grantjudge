@@ -325,6 +325,14 @@ because you never mention what anything costs" is a fix.
   whole evaluation on chain from the proposal text, the rubric and the agreed
   vector, and reports each field beside what was stored. It takes no input from
   you and consults no model.
+- **The maths, worked:**
+  [docs/WORKED-EXAMPLE.md](https://github.com/kenil1710/grantjudge/blob/main/docs/WORKED-EXAMPLE.md)
+  runs three real filings — a strong one, a thin one and one made of adjectives
+  — through the contract's own functions, from text to signal counts to the
+  bracket each criterion earned to the weighted total. Every number in it is
+  computed rather than typed, including the one that makes the appeal argument:
+  the thin filing's ceiling moves from 0.88 to 5.58 when it adds real evidence,
+  and the adjectival one does not move at all.
 - **Source:** <https://github.com/kenil1710/grantjudge>
 
 657 offline tests — including a hundred and twenty randomised lifecycles that
