@@ -1,5 +1,7 @@
 # GrantJudge — DAO grant evaluation by open criteria
 
+[![checks](https://github.com/kenil1710/grantjudge/actions/workflows/checks.yml/badge.svg)](https://github.com/kenil1710/grantjudge/actions/workflows/checks.yml)
+
 **Fund what matters. Let consensus decide.**
 
 A DAO treasurer opens a round: they deposit a pool of GEN and write three to
