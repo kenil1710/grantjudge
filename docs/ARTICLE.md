@@ -318,7 +318,7 @@ because you never mention what anything costs" is a fix.
 
 ## Try it
 
-- **App:** the seven-page frontend reads the deployed contract directly —
+- **App:** <https://grantjudge-app.vercel.app> — the frontend reads the deployed contract directly;
   nothing is mirrored, cached or reimplemented client-side. The draft preview
   and the verification button are contract calls.
 - **Verify anything:** every scored proposal has a button that re-derives the
@@ -327,10 +327,11 @@ because you never mention what anything costs" is a fix.
   you and consults no model.
 - **Source:** <https://github.com/kenil1710/grantjudge>
 
-657 offline tests, a cross-file audit that re-derives every number this
-README quotes, and two deployed instances of
-the same source — one enforcing the brief exactly, one with the windows in
-minutes so a whole round can be watched end to end.
+657 offline tests — including a hundred and twenty randomised lifecycles that
+each have to drain to exactly zero — and a cross-file audit that re-derives
+every number the repository quotes about itself. Two deployed instances of the
+same source: one enforcing the brief exactly, one with the windows in minutes so
+a whole round can be watched end to end.
 
 ---
 

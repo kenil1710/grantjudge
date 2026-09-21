@@ -319,10 +319,36 @@ node accounts.mjs                 # a stable pool of signing keys
 node deploy.mjs --both            # both instances + the consumer
 node seed.mjs --canonical         # the whole lifecycle, on chain, asserted
 
-cd ../frontend && npm install
+cd .. && python3 tools/evidence.py   # renders docs/EVIDENCE.md from that run
+
+cd frontend && npm install
 cp .env.example .env.local        # fill in the deployed addresses
 npm run dev
 ```
+
+---
+
+## What the seed run demonstrates
+
+`node test/seed.mjs --canonical` does not just write — it reads every number
+back off the chain and asserts it. In one run:
+
+| | |
+|---|---|
+| **FUNDED** | a strong proposal wins and is paid |
+| **PARTIALLY FUNDED** | two winners split a pool in proportion to their scores, to the wei |
+| **QUALIFIED** | above the bar but out of seats: deposit back, no award |
+| **REJECTED** | below the bar: deposit forfeited *to the pool*, not to the contract |
+| **CONTESTED → WON** | rejected, appealed with real evidence, re-scored, funded out of the remainder |
+| **CONTESTED → LOST** | appealed with adjectives, re-scored, still below the bar |
+| **CANCELLED** | a treasurer closes an empty round and takes the pool back |
+| **STALLED → SKIPPED** | a proposal nobody could score, settled by a stranger, deposit returned |
+| **DRAINED** | after the last claim, the round's locked balance is exactly zero |
+
+The result is `docs/EVIDENCE.md`, which is **generated** by `tools/evidence.py`
+from what the run read back — not typed in. An evidence document whose numbers
+were copied by a person keeps looking healthy after the contract stops agreeing
+with it.
 
 ---
 
