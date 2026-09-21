@@ -26,9 +26,22 @@ const roundId = Number(argOf("round", "0"));
 const which = argOf("contract", "GrantJudgeDemo");
 const attempts = Number(argOf("attempts", "4"));
 const alsoStalled = process.argv.includes("--stalled");
+/**
+ * Proposal ids to leave unevaluated.
+ *
+ * Only reason this exists: DEMONSTRATING THE STALL PATH. `settle_stalled` is
+ * the escape hatch for a proposal the network cannot score, and the only way to
+ * show it working on a network that scores everything in fifteen seconds is to
+ * decline to ask. It is not a privilege — `evaluate` stays permissionless and
+ * anybody can score the proposal this flag skipped, at any time, before the
+ * stall window opens.
+ */
+const skipIds = new Set(
+  String(argOf("skip", "")).split(",").filter(Boolean).map(Number),
+);
 const alsoRemainder = process.argv.includes("--remainder");
 if (!roundId) {
-  console.error("usage: node settle.mjs --round=N [--attempts=4] [--stalled] [--remainder] [--contract=GrantJudgeDemo]");
+  console.error("usage: node settle.mjs --round=N [--attempts=4] [--skip=id,id] [--stalled] [--remainder] [--contract=GrantJudgeDemo]");
   process.exit(2);
 }
 
@@ -65,6 +78,10 @@ if (round.status === "OPEN" || round.status === "EVALUATING") {
   const proposals = await trigger.view("get_proposals", [roundId]);
   for (const p of proposals.proposals ?? []) {
     if (p.status !== "PENDING") continue;
+    if (skipIds.has(p.proposal_id)) {
+      say(`  #${p.proposal_id} left unevaluated on purpose — the stall path is what this one demonstrates`);
+      continue;
+    }
     let scored = false;
     for (let i = 1; i <= attempts && !scored; i++) {
       const out = await trigger.send("evaluate", [roundId, p.proposal_id]);
@@ -79,6 +96,15 @@ if (round.status === "OPEN" || round.status === "EVALUATING") {
       }
     }
     if (!scored && alsoStalled) {
+      const out = await trigger.send("settle_stalled", [roundId, p.proposal_id]);
+      const json = returnedJson(out);
+      say(`  settle_stalled #${p.proposal_id}: ${json?.outcome ?? json?.reason ?? out.status}`);
+    }
+  }
+  if (alsoStalled) {
+    const after = await trigger.view("get_proposals", [roundId]);
+    for (const p of after.proposals ?? []) {
+      if (p.status !== "PENDING") continue;
       const out = await trigger.send("settle_stalled", [roundId, p.proposal_id]);
       const json = returnedJson(out);
       say(`  settle_stalled #${p.proposal_id}: ${json?.outcome ?? json?.reason ?? out.status}`);
