@@ -96,17 +96,29 @@ def main() -> int:
     if rounds:
         w("## Rounds")
         w("")
-        w("| # | name | outcome | pool | awarded | funded | qualified | "
-          "rejected | skipped | appeals | locked |")
-        w("|---|---|---|---|---|---|---|---|---|---|---|")
-        for r in rounds:
-            w(f"| {r.get('round_id')} | {r.get('name', '')} | "
-              f"**{r.get('outcome', '')}** | {r.get('pool_gen', '—')} | "
-              f"{r.get('allocated_gen', '—')} | {r.get('funded', '—')} | "
-              f"{r.get('qualified', '—')} | {r.get('rejected', '—')} | "
-              f"{r.get('skipped', '—')} | {r.get('contested', '—')} | "
-              f"`{r.get('locked_wei', '—')}` |")
-        w("")
+        # Grouped by instance: both contracts number their rounds from one, so
+        # a single table with two "#1" rows in it is a table that invites the
+        # reader to conflate two different chains of events.
+        for instance in ("GrantJudgeDemo", "GrantJudge"):
+            here = [r for r in rounds if r.get("instance", "GrantJudgeDemo") == instance]
+            if not here:
+                continue
+            label = ("the demo instance — same source, windows in minutes"
+                     if instance == "GrantJudgeDemo"
+                     else "the canonical instance — the brief exactly")
+            w(f"**`{instance}`** — {label}")
+            w("")
+            w("| # | name | outcome | pool | awarded | funded | qualified | "
+              "rejected | skipped | appeals | locked |")
+            w("|---|---|---|---|---|---|---|---|---|---|---|")
+            for r in here:
+                w(f"| {r.get('round_id')} | {r.get('name', '')} | "
+                  f"**{r.get('outcome', '')}** | {r.get('pool_gen', '—')} | "
+                  f"{r.get('allocated_gen', '—')} | {r.get('funded', '—')} | "
+                  f"{r.get('qualified', '—')} | {r.get('rejected', '—')} | "
+                  f"{r.get('skipped', '—')} | {r.get('contested', '—')} | "
+                  f"`{r.get('locked_wei', '—')}` |")
+            w("")
         drained = [r for r in rounds
                    if str(r.get("locked_wei")) == "0"
                    and r.get("outcome") in ("RANKED", "FINALIZED")]
@@ -192,9 +204,20 @@ def main() -> int:
         w("")
         w(f"`{canonical.get('address')}` runs the brief exactly — a 24-hour "
           "appeal window, a 48-hour stall window, one round per wallet per hour.")
-        w(f"Round {canonical.get('open_round')} is open for proposals; round "
-          f"{canonical.get('ranked_round')} has been ranked with its full "
-          "24-hour appeal window still running.")
+        w("It is the same source as the demo instance, byte for byte; only the")
+        w("clocks differ, which is why the whole lifecycle is demonstrated on")
+        w("the other one.")
+        w("")
+        bits = []
+        if canonical.get("open_round"):
+            bits.append(f"round {canonical['open_round']} is open for proposals")
+        if canonical.get("ranked_round"):
+            bits.append(f"round {canonical['ranked_round']} has been ranked, "
+                        "with its full 24-hour appeal window running")
+        if bits:
+            w("On it: " + "; ".join(bits) + ".")
+        else:
+            w("It currently holds no rounds.")
         w("")
 
     w("## Every check, in the order the run made it")

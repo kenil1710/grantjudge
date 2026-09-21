@@ -1,6 +1,6 @@
 {
-  "started_at": "2026-09-21T16:32:43.520Z",
-  "finished_at": "2026-09-21T16:32:43.552Z",
+  "started_at": "2026-09-21T16:37:02.182Z",
+  "finished_at": "2026-09-21T16:37:02.186Z",
   "seconds": 0,
   "note": "Read off the chain by test/collect.mjs. Nothing here came out of a script's memory.",
   "failures": 0,
@@ -48,7 +48,7 @@
     {
       "ok": true,
       "label": "round 2: awards + remainder = pool, exactly",
-      "detail": "5.1000 + 0.-100 = 5.0000 GEN"
+      "detail": "5.1000 + -0.1000 = 5.0000 GEN"
     },
     {
       "ok": true,
@@ -243,6 +243,20 @@
       "skipped": 0,
       "contested": 0,
       "locked_wei": "4000000000000000000"
+    },
+    {
+      "round_id": 1,
+      "instance": "GrantJudge",
+      "name": "Core Protocol Research",
+      "outcome": "OPEN",
+      "pool_gen": "6.00",
+      "allocated_gen": "0.00",
+      "funded": 0,
+      "qualified": 0,
+      "rejected": 0,
+      "skipped": 0,
+      "contested": 0,
+      "locked_wei": "6000000000000000000"
     }
   ],
   "stats": {
@@ -543,12 +557,12 @@
   },
   "canonical": {
     "address": "0x94f76435f7D262A1F644A7CFc3c44D4eB3a11171",
-    "open_round": null,
+    "open_round": 1,
     "ranked_round": null,
     "stats": {
-      "balance_wei": "0",
+      "balance_wei": "6000000000000000000",
       "cancelled_rounds": 0,
-      "chain_balance_wei": "0",
+      "chain_balance_wei": "6000000000000000000",
       "contests": 0,
       "contests_won": 0,
       "evaluating_rounds": 0,
@@ -559,8 +573,8 @@
       "identity": "balance_wei == locked_wei + payable_wei",
       "inconclusive": 0,
       "ledger_balanced": true,
-      "locked_wei": "0",
-      "open_rounds": 0,
+      "locked_wei": "6000000000000000000",
+      "open_rounds": 1,
       "owner": "0xfC5fd0367aCEc924B9a28c7847C8f9D81B4f906B",
       "paused": false,
       "payable_wei": "0",
@@ -570,7 +584,7 @@
       "ranked_rounds": 0,
       "refusals": 0,
       "rejected_proposals": 0,
-      "rounds": 0,
+      "rounds": 1,
       "rubric_version": "1.0.0",
       "scored_proposals": 0,
       "skipped": 0,
@@ -579,8 +593,8 @@
       "total_awarded_wei": "0",
       "total_claimed_wei": "0",
       "total_forfeited_wei": "0",
-      "total_pool_gen": "0.00",
-      "total_pool_wei": "0",
+      "total_pool_gen": "6.00",
+      "total_pool_wei": "6000000000000000000",
       "total_refunded_wei": "0",
       "total_stakes_wei": "0",
       "undelivered_wei": "0"

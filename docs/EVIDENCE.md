@@ -7,7 +7,7 @@ registry, and a fresh `verify_evaluation` for each scored proposal.
 It does not know or care what produced the state. Nothing in this
 file was typed in by hand, and nothing came out of a script's memory.
 
-- **Read at** `2026-09-21T16:32:43.552Z`
+- **Read at** `2026-09-21T16:37:02.186Z`
 - **Checks** 21/21 passed
 - **Network** GenLayer Studio Devnet, chain 61997
 
@@ -21,6 +21,8 @@ file was typed in by hand, and nothing came out of a script's memory.
 
 ## Rounds
 
+**`GrantJudgeDemo`** — the demo instance — same source, windows in minutes
+
 | # | name | outcome | pool | awarded | funded | qualified | rejected | skipped | appeals | locked |
 |---|---|---|---|---|---|---|---|---|---|---|
 | 1 | GenLayer Ecosystem Growth | **CANCELLED** | 5.00 | 0.00 | 0 | 0 | 0 | 0 | 0 | `0` |
@@ -29,6 +31,12 @@ file was typed in by hand, and nothing came out of a script's memory.
 | 4 | Security Audits | **CANCELLED** | 2.00 | 0.00 | 0 | 0 | 0 | 0 | 0 | `0` |
 | 5 | Docs and Translation | **RANKED** | 2.00 | 1.50 | 1 | 1 | 0 | 1 | 0 | `500000000000000000` |
 | 6 | Q4 Ecosystem Fund | **OPEN** | 4.00 | 0.00 | 0 | 0 | 0 | 0 | 0 | `4000000000000000000` |
+
+**`GrantJudge`** — the canonical instance — the brief exactly
+
+| # | name | outcome | pool | awarded | funded | qualified | rejected | skipped | appeals | locked |
+|---|---|---|---|---|---|---|---|---|---|---|
+| 1 | Core Protocol Research | **OPEN** | 6.00 | 0.00 | 0 | 0 | 0 | 0 | 0 | `6000000000000000000` |
 
 ### Round 2 — the ranking as the contract computed it
 
@@ -90,7 +98,11 @@ reported rather than hidden. On a network that delivers, this is zero.
 ## The canonical instance
 
 `0x94f76435f7D262A1F644A7CFc3c44D4eB3a11171` runs the brief exactly — a 24-hour appeal window, a 48-hour stall window, one round per wallet per hour.
-Round None is open for proposals; round None has been ranked with its full 24-hour appeal window still running.
+It is the same source as the demo instance, byte for byte; only the
+clocks differ, which is why the whole lifecycle is demonstrated on
+the other one.
+
+On it: round 1 is open for proposals.
 
 ## Every check, in the order the run made it
 
@@ -102,7 +114,7 @@ Round None is open for proposals; round None has been ranked with its full 24-ho
 - ok CONTESTED → LOST — re-scored and still below the bar — #4 0.20 → 0.20
 - ok CANCELLED — a treasurer closed an empty round and took the pool back — #1 5.00 GEN, #4 2.00 GEN
 - ok PARTIALLY FUNDED — round 3 split in proportion to the scores — 448:368 → 1.6470:1.3529 GEN
-- ok round 2: awards + remainder = pool, exactly — 5.1000 + 0.-100 = 5.0000 GEN
+- ok round 2: awards + remainder = pool, exactly — 5.1000 + -0.1000 = 5.0000 GEN
 - ok round 2: everything still locked is somebody's to claim — 0.2000 locked = 0.0000 unclaimed by proposers + 0.2000 remainder
 - ok round 3: awards + remainder = pool, exactly — 2.9999 + 0.0000 = 3.0000 GEN
 - ok round 3: everything still locked is somebody's to claim — 0.0000 locked = 0.0000 unclaimed by proposers + 0.0000 remainder
