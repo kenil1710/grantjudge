@@ -69,11 +69,18 @@ Measured across the deploy and seed runs, same contract, same account pool:
 
 | call | observed |
 |---|---|
-| `create_round` | 23s, 91s |
-| `submit_proposal` | 18s, 53s, 86s, 286s |
-| `evaluate` (a full consensus round) | 105s |
+| `create_round` | 10s, 23s, 91s, 161s, 175s, 182s, **313s** |
+| `submit_proposal` | 18s, 53s, 81s, 86s, 159s, 174s, 286s |
+| `cancel_round` | 161s |
+| `claim_payout` | 172s |
+| `evaluate` (a full consensus round) | **14s, 17s**, 105s |
 | `estimateTransactionFeesForWrite` for a payable write | 11.4s |
 | `sim_fundAccount` (faucet) | 2.4s, 3.8s, 10.8s |
+
+The range is not noise around a mean — it is two regimes. The same
+`evaluate` call, on the same contract with the same fixtures, took 105 seconds
+in one window and 14 in another half an hour later. A script that assumes either
+regime is a script that breaks in the other.
 
 **What this cost.** The seed script's first version used a 150-second submission
 window, which is generous if a submit takes 18 seconds and absurd if it takes
@@ -82,6 +89,23 @@ last builder was refused with *"closed to submissions"* — the contract working
 exactly as specified, and the script being wrong. The window is now 900 seconds
 and the wait is computed from the **last deadline the chain recorded** rather
 than assumed from the first.
+
+**And then the same bug cost a whole seeded round.** A `create_round` settled in
+**313 seconds** against a 300-second client give-up. The script had no round id,
+filed its three proposals into round `0`, and every one was correctly refused
+with the stake returned — the contract behaved perfectly, and the run lost a
+round to the *client* being wrong about the chain.
+
+Two fixes, and the second is the one that matters. The deadline is now 900
+seconds, because giving up early is worse than waiting long here. And a create
+that still comes back unsettled is no longer treated as a failure: the chain is
+asked whether the round exists, by treasurer and name, before anything
+downstream believes it does.
+
+> A write that lands after the client stopped watching leaves the SCRIPT wrong
+> about the chain. That is the one failure mode a seed script must not have,
+> because every number it then reports is measured against a world that is not
+> the one on chain.
 
 **The faucet had the same shape of bug.** `fundOnStudio` was a bare
 `await fetch` with no timeout. When Studio accepted the socket and stopped
