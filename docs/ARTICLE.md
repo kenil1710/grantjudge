@@ -100,8 +100,8 @@ own content words appear in the proposal at all — with the criterion's *name*
 counting double, because the name is the subject and the description is the
 gloss. That gives a **coverage** from 0 to 3.
 
-Depth and coverage produce a **bracket**: a low and a high, never more than four
-buckets wide. The prompt states the bracket. The model chooses inside it. And
+Depth and coverage produce a **bracket**: a low and a high, never offering more
+than four values. The prompt states the bracket. The model chooses inside it. And
 the validator's first act, before it spends an inference of its own, is a pure
 function over the leader's own bytes that refuses any score outside its bracket.
 

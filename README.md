@@ -94,7 +94,7 @@ vocabulary — figures, dates and milestones, budget language, track record, nam
 beneficiaries, stated risks, filler, attempts to instruct the scorer — and
 against how much of each criterion's own words the proposal actually touches.
 Those two numbers produce a **bracket** per criterion: a low and a high, never
-more than four buckets wide. The model chooses inside the bracket and nowhere
+offering more than four values. The model chooses inside the bracket and nowhere
 else.
 
 > A criterion a proposal never addresses **cannot be scored above 2 out of 7** —
