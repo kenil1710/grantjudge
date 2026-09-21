@@ -14,6 +14,14 @@ validators agreed on.
 **On chain:** GenLayer Studio Devnet, chain 61997. Addresses in
 [`deployments.json`](deployments.json).
 
+| | |
+|---|---|
+| **The idea** | [Where the line is](#where-the-line-is) · [The two people this is for](#the-two-people-this-is-for) |
+| **The mechanism** | [Scoring](#scoring) · [Settlement](#settlement) · [The appeal](#the-appeal) · [The twelve rules](#the-twelve-rules) |
+| **The proof** | [docs/WORKED-EXAMPLE.md](docs/WORKED-EXAMPLE.md) · [docs/EVIDENCE.md](docs/EVIDENCE.md) · [docs/PROBE.md](docs/PROBE.md) |
+| **The code** | [Contract API](#contract-api) · [Composability](#composability--grantconsumer) · [contracts/NOTES.md](contracts/NOTES.md) |
+| **Running it** | [Repository](#repository) · `bash tools/verify.sh` |
+
 ---
 
 ## Where the line is
