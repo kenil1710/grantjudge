@@ -323,6 +323,36 @@ than in aggregate, because an aggregate-only invariant is satisfiable by a
 contract that has quietly moved one round's pool into another's — which is
 precisely the failure a grant platform would be least able to explain.
 
+### The one thing that did not work, and why it is not the contract
+
+`claim_remainder` — the call a treasurer makes to take back what the ranking
+did not allocate — reverted on chain with `out_of message_fee total`. The same
+payment path had already run nine times without trouble through `claim_award`
+and `claim_payout`.
+
+The simulator explained itself when asked. Simulating the call returns the
+contract's own refusal:
+
+> the appeal window for round #3 is still open for **57403196s**
+
+That is 664 days. Studio Dev's fee simulation runs on a block clock roughly two
+years stale, so the call is simulated on the wrong side of its own appeal
+window, refuses, emits no transfer — and the estimator therefore budgets nothing
+for a message the real execution does post.
+
+The correlation is exact. Of the contract's twelve public writes, exactly one
+both reads the block clock and moves value, and exactly that one cannot be fee-
+estimated on this network. The money is not lost: it stays locked against its
+round, `get_round` publishes it, and the check *"everything still locked is
+somebody's to claim"* passes.
+
+I mention it because the interesting thing about it is the shape. A contract
+that reads the clock defensively — refusing rather than guessing when it cannot
+tell the time — is doing the right thing, and it collided with a simulator that
+tells the wrong time. Neither party is wrong on its own. The repository's audit
+now flags the combination, so the next contract meets this at build time rather
+than as a reverted transaction.
+
 ### And every evaluation settled first time
 
 Eight consensus rounds, eight to twenty-two seconds each, every one agreed on
