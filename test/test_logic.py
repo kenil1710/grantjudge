@@ -58,6 +58,7 @@ Ten things are under test, not one.
 import ast
 import builtins
 import json
+import random
 import sys
 import types
 import unittest
@@ -5244,6 +5245,29 @@ class TestStateMachine(unittest.TestCase):
                        value, method, *args)
             self.assertTrue(rejected(out), method + ": " + str(out))
 
+    def test_a_finalized_round_still_pays_a_proposer_who_has_not_claimed(self):
+        """RULE 7 AT THE END OF THE LIFECYCLE. A round reaching its terminal
+        status freezes the RULES, not the money. A proposer who has not got
+        round to claiming must still be able to, for ever - a contract where
+        the treasurer closing the books could strand somebody's award would be
+        a contract with a deadline nobody was told about."""
+        c = fresh(round_cooldown_s=0, contest_window_s=600)
+        rid = open_round(c, pool=10 * GEN, threshold=0, max_winners=1,
+                         max_proposals=2)
+        pid = file_proposal(c, rid, ALICE, STRONG, 4 * GEN)
+        set_now(NOW + 4000)
+        score_one(c, rid, pid)
+        send(c, STRANGER, 0, "finalize", rid)
+        set_now(NOW + 4000 + 601)
+        send(c, TREASURER, 0, "claim_remainder", rid)
+        self.assertEqual(view(c, STRANGER, "get_round", rid)["status"],
+                         "FINALIZED")
+        self.assertGreater(round_locked(c, rid), 0)
+        out = send(c, ALICE, 0, "claim_award", rid, pid)
+        self.assertTrue(ok(out), out)
+        self.assertEqual(round_locked(c, rid), 0)
+        self.assertEqual(int(c.locked_wei), 0)
+
     def test_a_cancelled_round_refuses_everything(self):
         c = fresh(round_cooldown_s=0)
         rid = open_round(c)
@@ -5449,6 +5473,97 @@ class TestAttacks(unittest.TestCase):
         send(c, TREASURER, 0, "claim_remainder", rid)
         self.assertEqual(round_locked(c, rid), 0)
         self.assertEqual(int(c.locked_wei), 0)
+
+
+class TestRandomisedLifecycles(unittest.TestCase):
+    """RULE 7, OVER A HUNDRED AND TWENTY RANDOM ROUNDS.
+
+    The hand-written lifecycle tests prove the paths somebody thought of. This
+    drives whole rounds with randomised shapes — three to five criteria, pools
+    with dust in them, thresholds from zero to perfect, random score vectors,
+    proposals that get skipped, appeals filed with real evidence and with
+    adjectives — and asserts the only thing that must hold whatever happened:
+
+        after every claim has landed, the round's locked balance is EXACTLY
+        zero, and so is the contract's.
+
+    Seeded, so a failure is reproducible. It is one test rather than a hundred
+    and twenty because the useful output is "which trial, and with what shape",
+    which the assertion message carries."""
+
+    TRIALS = 120
+
+    def test_every_random_lifecycle_drains_to_zero(self):
+        rng = random.Random(20260921)
+        texts = [STRONG, MEDIUM, WEAK, THIN, INJECTING]
+        for trial in range(self.TRIALS):
+            c = fresh(round_cooldown_s=0, contest_window_s=300, stall_ttl_s=200)
+            n_crit = rng.choice([3, 4, 5])
+            pool = rng.randint(1, 20) * GEN + rng.randint(0, 999)
+            max_p = rng.randint(1, 5)
+            max_w = rng.randint(1, max_p)
+            threshold = rng.choice([0, 100, 300, 400, 550, 700])
+            shape = (f"trial {trial}: {n_crit} criteria, pool {pool}, "
+                     f"{max_w}/{max_p} seats, bar {threshold}")
+            rid = open_round(c, pool=pool, criteria=criteria_of(n_crit),
+                             max_proposals=max_p, max_winners=max_w,
+                             threshold=threshold, window=300,
+                             name="Randomised round " + str(trial))
+            authors = [ALICE, BOB, CAROL, DAVE, STRANGER][:max_p]
+            filed = []
+            for who in authors:
+                if rng.random() < 0.15:
+                    continue
+                ask = min(pool, rng.randint(1, 25) * GEN // 10)
+                filed.append((who, file_proposal(
+                    c, rid, who, rng.choice(texts), ask,
+                    TIMELINE_STRONG if rng.random() < 0.5 else TIMELINE_WEAK,
+                    TEAM_STRONG if rng.random() < 0.5 else TEAM_WEAK)))
+
+            set_now(NOW + 400)
+            stalled = []
+            for who, pid in filed:
+                if rng.random() < 0.12:
+                    stalled.append(pid)
+                    continue
+                score_one(c, rid, pid,
+                          scores=[rng.randint(0, 7) for _ in range(n_crit)],
+                          quality=rng.randint(0, 7))
+            if stalled:
+                set_now(NOW + 400 + 250)
+                for pid in stalled:
+                    out = send(c, STRANGER, 0, "settle_stalled", rid, pid)
+                    self.assertTrue(ok(out), shape + " — " + str(out))
+
+            out = send(c, STRANGER, 0, "finalize", rid)
+            self.assertTrue(ok(out), shape + " — finalize: " + str(out))
+
+            for who, pid in filed:
+                prop = view(c, STRANGER, "get_proposal", rid, pid)
+                if prop["contestable"] and rng.random() < 0.5:
+                    send(c, who, int(c.contest_stake_wei), "contest", rid, pid,
+                         rng.choice([TestContest.EVIDENCE,
+                                     "not much to add here at all, honestly"]))
+
+            for who, pid in filed:
+                prop = view(c, STRANGER, "get_proposal", rid, pid)
+                if int(prop["payout_wei"]) > 0 and not prop["payout_claimed"]:
+                    send(c, who, 0, "claim_award", rid, pid)
+
+            set_now(NOW + 400 + 250 + 400)
+            send(c, TREASURER, 0, "claim_remainder", rid)
+
+            self.assertEqual(round_locked(c, rid), 0,
+                             shape + " — the round did not drain")
+            # A refused call credits the sender; sweeping is part of the
+            # lifecycle, not an escape hatch from it.
+            for who in set([a for a, _ in filed] + [TREASURER]):
+                if int(c.payout_wei.get(who) or 0) > 0:
+                    send(c, who, 0, "claim_payout")
+            self.assertEqual(int(c.locked_wei), 0, shape + " — locked")
+            self.assertEqual(int(c.payable_wei), 0, shape + " — payable")
+            self.assertEqual(int(c.balance_wei), 0, shape + " — balance")
+
 
 
 if __name__ == "__main__":
