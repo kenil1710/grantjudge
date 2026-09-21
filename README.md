@@ -303,6 +303,7 @@ test/deploy.mjs              deploys both instances and the consumer
 test/seed.mjs                drives the whole lifecycle on chain and asserts it
 test/topup.mjs               repairs a run that lost a write to the network
 test/settle.mjs              drives one round to completion from wherever it is
+test/appeal.mjs              files an appeal, as the author, from a fixture's evidence
 test/cleanup.mjs             cancels an empty round left by an interrupted run
 test/fixtures/proposals.json the seeded proposal texts
 tools/audit.py               the cross-file audit and the rejection ledger
