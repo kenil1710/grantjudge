@@ -312,6 +312,7 @@ test/test_logic.py           657 offline tests — no chain, no network, no mode
 test/harness.mjs             shared integration helpers
 test/deploy.mjs              deploys both instances and the consumer
 test/seed.mjs                drives the whole lifecycle on chain and asserts it
+test/collect.mjs             derives docs/seed-evidence.json by READING the chain
 test/topup.mjs               repairs a run that lost a write to the network
 test/settle.mjs              drives one round to completion from wherever it is
 test/appeal.mjs              files an appeal, as the author, from a fixture's evidence
@@ -371,10 +372,20 @@ back off the chain and asserts it. In one run:
 | **STALLED → SKIPPED** | a proposal nobody could score, settled by a stranger, deposit returned |
 | **DRAINED** | after the last claim, the round's locked balance is exactly zero |
 
-The result is `docs/EVIDENCE.md`, which is **generated** by `tools/evidence.py`
-from what the run read back — not typed in. An evidence document whose numbers
-were copied by a person keeps looking healthy after the contract stops agreeing
-with it.
+The result is `docs/EVIDENCE.md`, which is **generated** rather than typed:
+
+```bash
+node test/collect.mjs       # read the chain, derive the checks, write the JSON
+python3 tools/evidence.py   # render docs/EVIDENCE.md from it
+```
+
+`collect.mjs` does not know or care what produced the state — it reads every
+round, every proposal, every ranking, the books, the consumer's registry and a
+fresh `verify_evaluation` for every scored proposal, and derives the checks from
+what it finds. That is the honest shape for an evidence document: the chain is
+the record, and this is a reader of it. An evidence document whose numbers were
+copied by a person keeps looking healthy after the contract stops agreeing with
+it.
 
 ---
 

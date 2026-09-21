@@ -21,6 +21,11 @@ SRC = ROOT / "docs" / "seed-evidence.json"
 OUT = ROOT / "docs" / "EVIDENCE.md"
 
 
+def _as_round_number(key: str) -> int:
+    digits = "".join(ch for ch in str(key) if ch.isdigit())
+    return int(digits) if digits else 0
+
+
 def gen(wei) -> str:
     n = int(str(wei or "0"))
     whole, frac = divmod(n, 10 ** 18)
@@ -81,7 +86,7 @@ def main() -> int:
         w("## Rounds")
         w("")
         w("| # | name | outcome | pool | awarded | funded | qualified | "
-          "rejected | skipped | appeals | locked after |")
+          "rejected | skipped | appeals | locked |")
         w("|---|---|---|---|---|---|---|---|---|---|---|")
         for r in rounds:
             w(f"| {r.get('round_id')} | {r.get('name', '')} | "
@@ -91,7 +96,9 @@ def main() -> int:
               f"{r.get('skipped', '—')} | {r.get('contested', '—')} | "
               f"`{r.get('locked_wei', '—')}` |")
         w("")
-        drained = [r for r in rounds if str(r.get("locked_wei")) == "0"]
+        drained = [r for r in rounds
+                   if str(r.get("locked_wei")) == "0"
+                   and r.get("outcome") in ("RANKED", "FINALIZED")]
         if drained:
             w(f"**{len(drained)} round(s) drained to exactly zero wei** once "
               "every claim had landed. That is rule 7 asserted per round rather")
@@ -99,12 +106,15 @@ def main() -> int:
             w("a contract that has quietly moved one round's pool into another's.")
             w("")
 
-    for key, label in (("round1", "Round 1"), ("round2", "Round 2"),
-                       ("round4", "Round 4")):
-        table = (demo.get("rankings") or {}).get(key)
+    # Iterate whatever the collector found rather than a fixed list of names:
+    # the rounds are keyed by their real ids, and a run that produced four
+    # ranked rounds should not be described by a document that knows about
+    # three.
+    for key, table in sorted((demo.get("rankings") or {}).items(),
+                             key=lambda kv: _as_round_number(kv[0])):
         if not table or not table.get("rows"):
             continue
-        w(f"### {label} — the ranking as the contract computed it")
+        w(f"### Round {_as_round_number(key)} — the ranking as the contract computed it")
         w("")
         w("| rank | proposal | author | status | score | requested | awarded | "
           "appeal |")
@@ -156,7 +166,7 @@ def main() -> int:
 
     consumer = ev.get("consumer")
     if consumer:
-        reg = consumer.get("registry", {})
+        reg = consumer.get("registry", {}) or {}
         w("## Composability")
         w("")
         w(f"`GrantConsumer` at `{consumer.get('address')}` holds "
