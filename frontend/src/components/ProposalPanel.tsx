@@ -54,7 +54,13 @@ export function ProposalPanel({ proposal, round, index, onChanged }: Props) {
     round.status !== "FINALIZED" &&
     round.status !== "CANCELLED" &&
     round.seconds_remaining === 0;
-  const canSettleStalled = proposal.status === "PENDING";
+  // Offered only once the contract would actually accept it. The button was
+  // shown for every PENDING proposal at first, which meant the common case was
+  // a user clicking it and being told to come back in four minutes — a refusal
+  // the UI already had everything it needed to avoid.
+  const stallsAt = round.deadline + round.stall_ttl_s;
+  const canSettleStalled =
+    proposal.status === "PENDING" && Math.floor(Date.now() / 1000) >= stallsAt;
   const canClaim =
     mine && !proposal.payout_claimed && Number(proposal.payout_wei) > 0 && proposal.settled_at > 0;
 

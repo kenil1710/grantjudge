@@ -10,7 +10,8 @@ each criterion and score it. The ranking, the allocation and every wei of the
 settlement are then computed by ordinary deterministic code from the scores the
 validators agreed on.
 
-**Live on GenLayer Studio Devnet (chain 61997).** Addresses in
+**Live app:** <https://grantjudge-app.vercel.app>
+**On chain:** GenLayer Studio Devnet, chain 61997. Addresses in
 [`deployments.json`](deployments.json).
 
 ---
