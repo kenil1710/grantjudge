@@ -435,6 +435,13 @@ this contract, and it is **reported rather than hidden** — `get_stats` publish
 the contract's real chain balance beside its own books and names the gap
 `undelivered_wei`. On a network that delivers, that number is zero.
 
+It was confirmed again on this deployment, from the outside: after a treasurer
+cancelled an empty round and swept the refund, the contract's real balance read
+**15.6 GEN** while its own books said 13.6 — the 2 GEN difference being exactly
+the refund whose queued transfer never executed. The books are right about who
+owns what; the chain is right about where the wei is; and the contract publishes
+both rather than choosing one.
+
 ---
 
 ## Licence
