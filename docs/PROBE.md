@@ -268,6 +268,34 @@ a transaction. `tools/audit.py` refuses both `:test` and `:latest`.
 
 ---
 
+## 5b. The deployed source can be read back, and `eth_getCode` is not how
+
+`eth_getCode` answers **`0x`** for a GenVM contract — which reads exactly like
+"nothing is deployed here" and is not. The source lives behind
+`gen_getContractCode`, base64-encoded:
+
+```
+eth_getCode              result "0x"
+gen_getContractCode      result "IyB2MC4zLjAKIyB7ICJEZXBlbmRzIjogInB5LWdlbmxheWVy…"
+gen_getContractSchema    result {"ctor":{"params":[["judge_address","string"],…
+sim_getContractCode      ERROR  Method not found
+sim_getContractSchema    ERROR  Method not found
+```
+
+**Why it matters here.** `deployments.json` records a sha256 at deploy time and
+`tools/audit.py` re-checks it, but that only proves the FILE has not changed
+since — a circular argument if what you want to know is what the chain holds.
+`test/verify_onchain.mjs` closes the loop by fetching the source back and
+diffing it:
+
+```
+ok   GrantJudge      chain 191539 bytes c19f06e69a2c9d6e… | identical true
+ok   GrantJudgeDemo  chain 191539 bytes c19f06e69a2c9d6e… | identical true
+ok   GrantConsumer   chain  16610 bytes 71fe8e18a7ba01d6… | identical true
+```
+
+---
+
 ## 6. `genvm-lint validate` cannot run against a pinned runner locally
 
 ```

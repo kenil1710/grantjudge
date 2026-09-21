@@ -54,6 +54,10 @@ sys.exit(0 if ok else 1)
 PY
 result $?
 
+step "the deployed source, read back off the chain"
+node test/verify_onchain.mjs
+result $?
+
 step "frontend typecheck and production build"
 ( cd frontend && npx tsc --noEmit && npx next build >/dev/null 2>&1 )
 result $?

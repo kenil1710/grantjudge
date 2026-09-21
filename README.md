@@ -313,6 +313,7 @@ test/harness.mjs             shared integration helpers
 test/deploy.mjs              deploys both instances and the consumer
 test/seed.mjs                drives the whole lifecycle on chain and asserts it
 test/collect.mjs             derives docs/seed-evidence.json by READING the chain
+test/verify_onchain.mjs      reads the deployed source back and diffs it against the repo
 test/topup.mjs               repairs a run that lost a write to the network
 test/settle.mjs              drives one round to completion from wherever it is
 test/appeal.mjs              files an appeal, as the author, from a fixture's evidence
@@ -405,6 +406,19 @@ print({k:v.get('source_sha256') for k,v in d.items() if isinstance(v,dict)})"
 `tools/audit.py` re-computes both on every run, which means a one-word comment
 edit in the contract fails the audit until the contract is redeployed. That
 strictness is the whole value of the field.
+
+That check proves the *file* has not moved since the deploy recorded its digest.
+To prove the **chain** holds those bytes, read the source back off it:
+
+```bash
+node test/verify_onchain.mjs
+#   ok   GrantJudge      chain 191539 bytes c19f06e69a2c9d6e… | identical true
+#   ok   GrantJudgeDemo  chain 191539 bytes c19f06e69a2c9d6e… | identical true
+#   ok   GrantConsumer   chain  16610 bytes 71fe8e18a7ba01d6… | identical true
+```
+
+`eth_getCode` answers `0x` for a GenVM contract; the source lives behind
+`gen_getContractCode`, base64-encoded. This is part of `tools/verify.sh`.
 
 ## Two deployed instances, same source
 

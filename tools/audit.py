@@ -442,6 +442,12 @@ def main() -> int:
                 # somebody would want to verify it.
                 check(dep[name].get("source_bytes") == len(contract.encode("utf8")),
                       f"{name} records the byte length of the source on disk")
+                # NOTE: this proves the FILE has not changed since the deploy
+                # recorded its digest. It does not prove the chain holds those
+                # bytes — `node test/verify_onchain.mjs` does that, by reading
+                # the source back with `gen_getContractCode` and comparing. It
+                # needs the network, so it lives in the short loop rather than
+                # here.
                 check(dep[name].get("source_sha256")
                       == hashlib.sha256(
                           (ROOT / "contracts/GrantJudge.py").read_bytes()
