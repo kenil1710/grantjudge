@@ -15,6 +15,7 @@ import {
   SlidersHorizontal,
 } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
+import { Confetti } from "@/components/Confetti";
 import { CriteriaEditor, type DraftCriterion } from "@/components/CriteriaEditor";
 import { TxButton } from "@/components/TxButton";
 import { useConfig } from "@/lib/hooks";
@@ -124,7 +125,11 @@ export default function CreatePage() {
   if (created) {
     return (
       <AppShell title="Round is open">
-        <div className="card" style={{ padding: 34, textAlign: "center", borderColor: "rgba(255,215,0,0.3)" }}>
+        <div
+          className="card"
+          style={{ padding: 34, textAlign: "center", borderColor: "rgba(255,215,0,0.3)", position: "relative", overflow: "hidden" }}
+        >
+          <Confetti />
           <CheckCircle2 size={34} color="var(--gold-bright)" />
           <h2 style={{ margin: "16px 0 10px", fontSize: "1.5rem" }}>Round #{created} is taking proposals</h2>
           <p style={{ margin: "0 auto 22px", maxWidth: 480, color: "var(--cream-dim)", lineHeight: 1.7, fontSize: "0.92rem" }}>

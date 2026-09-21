@@ -15,6 +15,7 @@ import {
   Users,
 } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
+import { Confetti } from "@/components/Confetti";
 import { TxButton } from "@/components/TxButton";
 import { EmptyState, SkeletonCard } from "@/components/States";
 import { useConfig, useOpenRounds, usePreview, useRound } from "@/lib/hooks";
@@ -101,7 +102,11 @@ function ProposeInner() {
   if (done) {
     return (
       <AppShell title="Filed">
-        <div className="card" style={{ padding: 34, textAlign: "center", borderColor: "rgba(16,185,129,0.3)" }}>
+        <div
+          className="card"
+          style={{ padding: 34, textAlign: "center", borderColor: "rgba(16,185,129,0.3)", position: "relative", overflow: "hidden" }}
+        >
+          <Confetti />
           <CheckCircle2 size={34} color="var(--emerald)" />
           <h2 style={{ margin: "16px 0 10px", fontSize: "1.5rem" }}>Your proposal is on chain</h2>
           <p style={{ margin: "0 auto 22px", maxWidth: 460, color: "var(--cream-dim)", lineHeight: 1.7, fontSize: "0.92rem" }}>

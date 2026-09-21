@@ -103,7 +103,7 @@ export function ProposalPanel({ proposal, round, index, onChanged }: Props) {
               <span className="mono" style={{ color: "var(--cream)", fontSize: "0.86rem" }}>
                 {shortAddress(proposal.author, 6)}
               </span>
-              {funded && <Crown size={15} color="var(--gold-bright)" />}
+              {funded && <Crown size={15} color="var(--gold-bright)" className={proposal.rank === 1 ? "pulse" : undefined} />}
               {mine && (
                 <span style={{ fontSize: "0.68rem", color: "var(--emerald)", border: "1px solid rgba(16,185,129,0.3)", borderRadius: 999, padding: "1px 7px" }}>
                   you
