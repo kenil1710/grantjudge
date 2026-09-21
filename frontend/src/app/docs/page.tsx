@@ -86,7 +86,7 @@ export default function DocsPage() {
                 },
                 {
                   title: "Get some GEN",
-                  body: "Studio Devnet is faucet-funded. Ask the Studio faucet for the address you are going to use; the amounts on this app are small — a proposal deposit is 0.1 GEN.",
+                  body: `Studio Devnet is faucet-funded. Ask the Studio faucet for the address you are going to use; the amounts on this app are small — a proposal deposit is ${config ? formatGen(config.spam_stake_wei) : "0.10"} GEN and an appeal stakes ${config ? formatGen(config.contest_stake_wei) : "0.20"} GEN.`,
                 },
                 {
                   title: "Read a round before you write for it",

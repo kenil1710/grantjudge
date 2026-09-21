@@ -432,6 +432,13 @@ def main() -> int:
             if name in dep:
                 check(dep[name].get("rubric_version") == version,
                       f"{name} records rubric {version}")
+                # STRICT ON PURPOSE, and the strictness has teeth: it means a
+                # one-word comment fix in the contract fails this audit until
+                # the contract is redeployed. That is the correct trade. The
+                # claim this repository makes is "the source here is the source
+                # on chain", and a check that tolerated a byte of drift would
+                # make that claim unverifiable in exactly the cases where
+                # somebody would want to verify it.
                 check(dep[name].get("source_bytes") == len(contract.encode("utf8")),
                       f"{name} records the byte length of the source on disk")
         if "GrantConsumer" in dep:
@@ -467,6 +474,20 @@ def main() -> int:
     for marker in ("_coherent", "_agrees", "_allocate", "settle_stalled",
                    "contest", "claim_remainder", "GrantConsumer"):
         check(marker in suite, f"the suite exercises {marker}")
+
+    section("23 · the documentation the README points at exists")
+    for rel in ("contracts/NOTES.md", "docs/PROBE.md", "docs/ARTICLE.md",
+                "tools/evidence.py"):
+        check((ROOT / rel).exists(), f"{rel} exists")
+    for rel in ("contracts/NOTES.md", "docs/PROBE.md", "docs/ARTICLE.md"):
+        check(rel.split("/")[-1] in readme or rel in readme,
+              f"the README points at {rel}")
+    # EVIDENCE.md is GENERATED, so its absence before a seed run is correct and
+    # its presence must mean a run happened.
+    evidence = ROOT / "docs" / "EVIDENCE.md"
+    seed_json = ROOT / "docs" / "seed-evidence.json"
+    check(evidence.exists() == seed_json.exists(),
+          "EVIDENCE.md exists exactly when the seed run that generates it does")
 
     print()
     print(f"{CHECKS - len(FAILURES)}/{CHECKS} checks passed")

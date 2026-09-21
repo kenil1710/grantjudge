@@ -297,8 +297,14 @@ test/deploy.mjs              deploys both instances and the consumer
 test/seed.mjs                drives the whole lifecycle on chain and asserts it
 test/fixtures/proposals.json the seeded proposal texts
 tools/audit.py               cross-file audit and the rejection ledger
+tools/evidence.py            renders docs/EVIDENCE.md from what the seed read back
 frontend/                    the Next.js app
-docs/                        the run logs and evidence this README cites
+
+docs/PROBE.md                what was measured against the live network
+docs/EVIDENCE.md             what the seed run actually did, generated not typed
+docs/ARTICLE.md              the write-up
+docs/seed-run.log            the raw log of the run EVIDENCE.md describes
+docs/seed-evidence.json      the machine-readable form
 ```
 
 ### Running it
