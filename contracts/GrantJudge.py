@@ -569,6 +569,99 @@ def _tokens(text: str) -> list:
     return out
 
 
+def _sentences(text: typing.Any) -> list:
+    """`text` split into the smallest units that carry a claim, in order.
+
+    Split on sentence ends and on the semicolon rather than on words, because a
+    word is not a claim and a paragraph is several. Each piece comes back twice:
+    the text as it was written, and a COMPARISON KEY - case folded, punctuation
+    dropped, whitespace collapsed - so that re-typing a sentence with different
+    spacing or a different comma is recognised as the same sentence."""
+    out = []
+    piece = []
+    flat = _flat(text) + "."
+    for i in range(len(flat)):
+        ch = flat[i]
+        piece.append(ch)
+        if ch not in ".!?;":
+            continue
+        # NOT THE POINT IN 0.6 GEN. A costing is the last thing an appeal
+        # should be cut in half over, and splitting there would put a space
+        # into the middle of a figure on the way back out.
+        if ch == "." and i > 0 and i + 1 < len(flat) \
+                and flat[i - 1].isdigit() and flat[i + 1].isdigit():
+            continue
+        written = _flat("".join(piece))
+        piece = []
+        core = []
+        for c in _lower(written):
+            core.append(c if c.isalnum() else " ")
+        key = " ".join("".join(core).split())
+        if key == "":
+            continue
+        out.append((written, key))
+    return out
+
+
+def _novel(evidence: typing.Any, filed: typing.Any) -> str:
+    """The part of an appeal the filing did not already say. NEVER RAISES.
+
+    THIS IS THE APPEAL'S REAL GUARD, and it exists because the length floor
+    beside it was never one. `contest` asks for new evidence; a minimum of
+    twenty characters only ever checked that SOMETHING arrived, so a proposer
+    could send back their own filing, byte for byte, and be re-read as though
+    they had written it twice.
+
+    That was not a harmless no-op, and the reason is worth stating exactly.
+    Depth rises with length and with how many figures a filing names, and
+    `_bracket` moves BOTH ENDS with depth - so duplicating the filing raises the
+    floor of every bracket, not just the ceiling. `_derive` snaps a score up
+    into its bracket, which means the lift lands whatever any model says. A
+    proposal scored 2.14 against a 2.50 threshold came back at 3.04 on an appeal
+    that added not one new word, and it came back at 1.04 rather than 0.50 even
+    from a scorer that answered zero on every criterion. That is a score moved
+    by arithmetic over text the first reading had already counted, which is the
+    one thing rule 9's bracketing exists to make impossible.
+
+    So the evidence is reduced to its novel sentences before it is scored,
+    hashed or stored. A sentence the filing already carried contributes nothing;
+    a sentence the proposer repeats inside the appeal itself contributes once;
+    a sentence they actually wrote contributes in full and buys the room it
+    always did. What survives is what `contest` then measures the twenty
+    character floor against, so an appeal that adds nothing is refused - and a
+    refusal takes no stake, which is what the floor was trying to say all
+    along.
+
+    WHAT IT DOES NOT DO. It is a novelty test, not a substance test: a proposer
+    who REWRITES their filing in different words has written something new by
+    this measure, and the depth ladder will count its length. Whether length
+    should buy depth at all is a question about the rubric, not about the
+    appeal, and it is the same question at submission time."""
+    prior = []
+    for _, key in _sentences(filed):
+        prior.append(" " + key + " ")
+    out = []
+    seen = []
+    for written, key in _sentences(evidence):
+        probe = " " + key + " "
+        # CONTAINED, not just equal. A proposer who re-sends half a filed
+        # sentence, or re-punctuates one into two, has still added nothing, and
+        # an equality test would let either through. Checked against each filed
+        # sentence on its own rather than against the filing joined up, so that
+        # a run of words spanning the end of one sentence and the start of the
+        # next is not mistaken for a repeat of either.
+        already = False
+        for old in prior:
+            if probe in old:
+                already = True
+                break
+        if already or probe in seen:
+            continue
+        seen.append(probe)
+        out.append(written)
+    return _flat(" ".join(out))
+
+
 def _signals(text: typing.Any) -> dict:
     """What this contract can measure about a proposal without judging it.
 
@@ -2902,8 +2995,23 @@ class GrantJudge(gl.contract.Contract):
                 + " GEN; " + _gen(value) + " GEN was sent",
                 {"required_wei": str(stake)})
 
-        evidence = _clean(additional_evidence, MAX_EVIDENCE)
+        filed = _clean(additional_evidence, MAX_EVIDENCE)
+        # MEASURED AGAINST THE FILING, not against zero. `_novel` drops every
+        # sentence proposal #pid already carried, and what is left is what gets
+        # scored, hashed and stored - so the twenty character floor below is now
+        # a floor on what the appeal ADDS, which is what it always claimed to
+        # be. An appeal made of the filing itself reduces to nothing here and is
+        # refused, and a refusal takes no stake.
+        evidence = _novel(filed, str(prop.description) + ". "
+                          + str(prop.timeline) + ". " + str(prop.team))
         if len(evidence) < 20:
+            if len(filed) >= 20:
+                return self._refuse(
+                    "this appeal repeats what proposal #" + str(pid)
+                    + " already said and adds nothing the first reading did "
+                    "not already count; an appeal needs at least 20 characters "
+                    "of evidence that is not in the filing",
+                    {"submitted_chars": len(filed), "new_chars": len(evidence)})
             return self._refuse(
                 "an appeal needs at least 20 characters of new evidence; an "
                 "appeal that adds nothing would be rescoring the same text and "

@@ -524,8 +524,16 @@ async function seedDemo() {
     log("");
     log("  GrantConsumer — a DAO registry that only recognises what the judge funded");
     const consumer = connect({ address: deployments.GrantConsumer.address, role: "outsider" });
-    const winner = (rank1.rows ?? []).find((row) => row.status === "FUNDED");
-    const loser = (rank1.rows ?? []).find((row) => row.status === "REJECTED");
+    // RE-READ THE RANKING. `rank1` was taken immediately after finalize, which
+    // is BEFORE the two appeals ran — and an appeal is precisely the thing that
+    // moves a proposal out of REJECTED. Reusing that snapshot here picked the
+    // proposal that had since WON its appeal as the "loser", then asserted the
+    // registry must refuse it. The registry accepted it, correctly, because it
+    // is funded and above the floor: the contract was right and the assertion
+    // was reading a stale row.
+    const rankNow = await reader.view("get_rankings", [round1]);
+    const winner = (rankNow.rows ?? []).find((row) => row.status === "FUNDED");
+    const loser = (rankNow.rows ?? []).find((row) => row.status === "REJECTED");
     if (winner) {
       const preview = await consumer.view("preview_grant", [round1, winner.proposal_id]);
       log(`     preview  proposal ${winner.proposal_id}: would_register=${preview.would_register} tier=${preview.tier} ${preview.score_text}/7.00`);

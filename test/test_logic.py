@@ -933,6 +933,18 @@ def score_one(c, rid, pid, scores=None, quality=None):
     return send(c, STRANGER, 0, "evaluate", rid, pid)
 
 
+def _flat_(s):
+    return C._flat(s)
+
+
+def _lower_(s):
+    return C._lower(s)
+
+
+def _clean_(s, n=2000):
+    return C._clean(s, n)
+
+
 def round_locked(c, rid) -> int:
     return int(c.rounds[rid - 1].locked_wei)
 
@@ -3883,6 +3895,167 @@ class TestContest(unittest.TestCase):
         out = send(c, CAROL, int(c.contest_stake_wei), "contest", rid, loser,
                    self.EVIDENCE)
         self.assertTrue(ok(out))
+
+
+class TestNovelty(unittest.TestCase):
+    """An appeal may only be scored on what it ADDS.
+
+    The regression these guard is worth writing down, because it was not a
+    refusal that was missing - it was a lift that happened anyway. `contest`
+    asked for at least twenty characters of new evidence and then only counted
+    the characters, so a proposer could resend their own filing verbatim. The
+    blob is the filing plus the appeal, and depth reads the blob's LENGTH and
+    its COUNT of figures, both of which double when text is sent twice. Depth
+    moves both ends of every bracket and `_derive` snaps a score up into its
+    bracket, so the appeal lifted the score by arithmetic whatever the scorer
+    said - which is precisely what rule 9's bracketing exists to prevent."""
+
+    FILED = MEDIUM
+    OTHER = TIMELINE_WEAK + ". " + TEAM_WEAK
+
+    def novel(self, evidence):
+        return C._novel(C._clean(evidence, 2000),
+                        self.FILED + ". " + self.OTHER)
+
+    def test_the_filing_resent_verbatim_is_nothing(self):
+        self.assertEqual(self.novel(self.FILED), "")
+
+    def test_the_filing_repunctuated_is_nothing(self):
+        """Compared on a case folded, punctuation free key, so re-typing a
+        sentence with different spacing is not novelty."""
+        self.assertEqual(self.novel(self.FILED.replace(".", " ;")), "")
+        self.assertEqual(self.novel(self.FILED.upper()), "")
+
+    def test_half_a_filed_sentence_is_nothing(self):
+        """Contained, not merely equal - half a sentence adds nothing either."""
+        self.assertEqual(self.novel(self.FILED.split(". ")[0][:60]), "")
+
+    def test_one_filed_sentence_repeated_is_nothing(self):
+        self.assertEqual(self.novel((self.FILED.split(". ")[0] + ". ") * 7), "")
+
+    def test_a_new_sentence_repeated_counts_once(self):
+        one = "The audit is booked with an external firm for 0.6 GEN. "
+        self.assertEqual(self.novel(one * 7), _flat_(one))
+
+    def test_genuine_evidence_survives_whole(self):
+        ev = TestContest.EVIDENCE
+        got = self.novel(ev)
+        self.assertGreater(len(got), len(ev) - 20)
+
+    def test_the_filing_plus_new_detail_keeps_only_the_detail(self):
+        ev = TestContest.EVIDENCE
+        got = self.novel(self.FILED + " " + ev)
+        self.assertGreater(len(got), 200)
+        self.assertLess(len(got), len(self.FILED))
+        self.assertNotIn(_lower_(self.FILED.split(". ")[0]), _lower_(got))
+
+    def test_it_never_raises_on_anything(self):
+        for junk in ("", " ", ".", "...", ";;;", "\n\n", "0", "a" * 3000,
+                     "\u00e9\u00e9\u00e9", None, 7, [], {}):
+            C._novel(junk, self.FILED)
+            C._novel(self.FILED, junk)
+
+
+class TestAppealMustAddSomething(unittest.TestCase):
+    """The same property, driven through the contract."""
+
+    def rejected_round(self, threshold=250):
+        c = fresh(round_cooldown_s=0, contest_window_s=600, stall_ttl_s=300)
+        rid = open_round(c, pool=10 * GEN, threshold=threshold, max_winners=2,
+                         max_proposals=4)
+        pid = file_proposal(c, rid, CAROL, MEDIUM, 4 * GEN, TIMELINE_WEAK,
+                            TEAM_WEAK)
+        set_now(NOW + 4000)
+        score_one(c, rid, pid)
+        send(c, STRANGER, 0, "finalize", rid)
+        self.assertEqual(
+            str(view(c, STRANGER, "get_proposal", rid, pid)["status"]),
+            "REJECTED")
+        return c, rid, pid
+
+    def test_an_appeal_made_of_the_filing_is_refused(self):
+        c, rid, pid = self.rejected_round()
+        desc = view(c, STRANGER, "get_proposal", rid, pid)["description"]
+        out = send(c, CAROL, int(c.contest_stake_wei), "contest", rid, pid, desc)
+        self.assertTrue(rejected(out))
+        self.assertIn("repeats what proposal", out["reason"])
+
+    def test_that_refusal_takes_no_stake(self):
+        c, rid, pid = self.rejected_round()
+        desc = view(c, STRANGER, "get_proposal", rid, pid)["description"]
+        stake = int(c.contest_stake_wei)
+        out = send(c, CAROL, stake, "contest", rid, pid, desc)
+        self.assertEqual(int(out["refunded_wei"]), stake)
+        self.assertEqual(int(c.payout_wei.get(CAROL) or 0), stake)
+        self.assertTrue(ok(send(c, CAROL, 0, "claim_payout")))
+
+    def test_that_refusal_leaves_the_appeal_unspent(self):
+        """A refused appeal is not an appeal lost - the proposer may still file
+        a real one, which is the whole reason the stake comes back."""
+        c, rid, pid = self.rejected_round()
+        desc = view(c, STRANGER, "get_proposal", rid, pid)["description"]
+        send(c, CAROL, int(c.contest_stake_wei), "contest", rid, pid, desc)
+        self.assertEqual(
+            str(view(c, STRANGER, "get_proposal", rid, pid)["contest_status"]),
+            "")
+        out = send(c, CAROL, int(c.contest_stake_wei), "contest", rid, pid,
+                   TestContest.EVIDENCE)
+        self.assertTrue(ok(out))
+        self.assertEqual(out["outcome"], "CONTEST_WON")
+
+    def test_the_score_cannot_move_on_text_already_read(self):
+        """THE BUG ITSELF. The filing resent scored 3.04 against an original
+        2.14 and a 2.50 threshold, and took an award for it."""
+        c, rid, pid = self.rejected_round()
+        before = view(c, STRANGER, "get_proposal", rid, pid)
+        desc = before["description"]
+        send(c, CAROL, int(c.contest_stake_wei), "contest", rid, pid, desc)
+        after = view(c, STRANGER, "get_proposal", rid, pid)
+        self.assertEqual(int(after["final_score"]), int(before["final_score"]))
+        self.assertEqual(str(after["status"]), "REJECTED")
+        self.assertEqual(int(after["award_wei"]), 0)
+
+    def test_a_scorer_that_answers_zero_cannot_be_lifted_by_a_resend(self):
+        """The floor of a bracket moves with depth too, so the old lift landed
+        even against a scorer answering zero on everything. Pinned here from
+        the pure side, which is where the arithmetic lives."""
+        f = facts_for(text=MEDIUM, evidence="", threshold=250)
+        f["timeline"], f["team"] = TIMELINE_WEAK, TEAM_WEAK
+        plain = C._derive(f, [0, 0, 0, 0], 0)["final_score"]
+        resent = dict(f)
+        resent["evidence"] = C._novel(MEDIUM,
+                                      MEDIUM + ". " + TIMELINE_WEAK + ". "
+                                      + TEAM_WEAK)
+        self.assertEqual(resent["evidence"], "")
+        self.assertEqual(C._derive(resent, [0, 0, 0, 0], 0)["final_score"],
+                         plain)
+
+    def test_a_real_appeal_still_buys_the_room_it_always_did(self):
+        c, rid, pid = self.rejected_round()
+        before = int(view(c, STRANGER, "get_proposal", rid, pid)["final_score"])
+        out = send(c, CAROL, int(c.contest_stake_wei), "contest", rid, pid,
+                   TestContest.EVIDENCE)
+        self.assertTrue(ok(out))
+        self.assertGreater(int(out["new_score"]), before)
+
+    def test_what_is_stored_is_what_was_scored(self):
+        """`verify_evaluation` re-reads the appeal from storage, so the stored
+        evidence has to be the reduced text, not the text as sent."""
+        c, rid, pid = self.rejected_round()
+        desc = view(c, STRANGER, "get_proposal", rid, pid)["description"]
+        sent = desc + " " + TestContest.EVIDENCE
+        send(c, CAROL, int(c.contest_stake_wei), "contest", rid, pid, sent)
+        stored = str(view(c, STRANGER, "get_proposal", rid,
+                          pid)["contest_evidence"])
+        self.assertNotEqual(stored, _clean_(sent))
+        self.assertTrue(view(c, STRANGER, "verify_evaluation", rid,
+                             pid)["verified"])
+
+    def test_contest_never_raises_on_a_resend(self):
+        c, rid, pid = self.rejected_round()
+        desc = view(c, STRANGER, "get_proposal", rid, pid)["description"]
+        for text in ("", " ", "." * 50, desc, desc * 3, desc[:25]):
+            send(c, CAROL, int(c.contest_stake_wei), "contest", rid, pid, text)
 
 
 class TestClaims(unittest.TestCase):

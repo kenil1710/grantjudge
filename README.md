@@ -308,7 +308,7 @@ refund it from. Both halves of that argument are the same argument.
 contracts/GrantJudge.py      the contract — every rule documented where it lives
 contracts/GrantConsumer.py   the composability example, custody: false
 contracts/NOTES.md           design notes and the hazards that shaped them
-test/test_logic.py           657 offline tests — no chain, no network, no model
+test/test_logic.py           673 offline tests — no chain, no network, no model
 test/harness.mjs             shared integration helpers
 test/deploy.mjs              deploys both instances and the consumer
 test/seed.mjs                drives the whole lifecycle on chain and asserts it
@@ -412,8 +412,8 @@ To prove the **chain** holds those bytes, read the source back off it:
 
 ```bash
 node test/verify_onchain.mjs
-#   ok   GrantJudge      chain 191539 bytes c19f06e69a2c9d6e… | identical true
-#   ok   GrantJudgeDemo  chain 191539 bytes c19f06e69a2c9d6e… | identical true
+#   ok   GrantJudge      chain 196992 bytes 6dd38d1718b54125… | identical true
+#   ok   GrantJudgeDemo  chain 196992 bytes 6dd38d1718b54125… | identical true
 #   ok   GrantConsumer   chain  16610 bytes 71fe8e18a7ba01d6… | identical true
 ```
 

@@ -289,8 +289,8 @@ since — a circular argument if what you want to know is what the chain holds.
 diffing it:
 
 ```
-ok   GrantJudge      chain 191539 bytes c19f06e69a2c9d6e… | identical true
-ok   GrantJudgeDemo  chain 191539 bytes c19f06e69a2c9d6e… | identical true
+ok   GrantJudge      chain 196992 bytes 6dd38d1718b54125… | identical true
+ok   GrantJudgeDemo  chain 196992 bytes 6dd38d1718b54125… | identical true
 ok   GrantConsumer   chain  16610 bytes 71fe8e18a7ba01d6… | identical true
 ```
 

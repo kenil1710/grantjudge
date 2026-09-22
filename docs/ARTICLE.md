@@ -402,7 +402,7 @@ because you never mention what anything costs" is a fix.
   and the adjectival one does not move at all.
 - **Source:** <https://github.com/kenil1710/grantjudge>
 
-657 offline tests — including a hundred and twenty randomised lifecycles that
+673 offline tests — including a hundred and twenty randomised lifecycles that
 each have to drain to exactly zero — and a cross-file audit that re-derives
 every number the repository quotes about itself. Two deployed instances of the
 same source: one enforcing the brief exactly, one with the windows in minutes so
