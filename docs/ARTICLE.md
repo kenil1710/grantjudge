@@ -323,7 +323,7 @@ than in aggregate, because an aggregate-only invariant is satisfiable by a
 contract that has quietly moved one round's pool into another's — which is
 precisely the failure a grant platform would be least able to explain.
 
-### The one thing that did not work, and why it is not the contract
+### The one thing that did not work, what it cost, and what closed it
 
 `claim_remainder` — the call a treasurer makes to take back what the ranking
 did not allocate — reverted on chain with `out_of message_fee total`. The same
@@ -340,7 +340,7 @@ years stale, so the call is simulated on the wrong side of its own appeal
 window, refuses, emits no transfer — and the estimator therefore budgets nothing
 for a message the real execution does post.
 
-The correlation is exact. Of the contract's twelve public writes, exactly one
+The correlation is exact. Of the contract's public writes, exactly one
 both reads the block clock and moves value, and exactly that one cannot be fee-
 estimated on this network. The money is not lost: it stays locked against its
 round, `get_round` publishes it, and the check *"everything still locked is
@@ -352,6 +352,31 @@ tell the time — is doing the right thing, and it collided with a simulator tha
 tells the wrong time. Neither party is wrong on its own. The repository's audit
 now flags the combination, so the next contract meets this at build time rather
 than as a reverted transaction.
+
+**And then I stopped being relaxed about it.** "The money is not lost, it is
+merely unreachable" is a sentence that sounds much better about somebody else's
+money. A treasurer who can see their remainder in `get_round` and cannot
+withdraw it has trapped value, and trapped value is a rejection however
+elegantly it is explained.
+
+The fix is not a bigger fee budget. A contract cannot choose its own fee
+allocation — that is carried by the transaction — and hand-supplying one was
+measured to fail structurally, identically at one times the estimate and at five
+thousand. Magnitude was never the problem.
+
+What a contract *can* do is decline to post the transfer. `claim_remainder_fallback`
+applies the identical gate, books the remainder into the treasurer's claimable
+balance and stops there; `claim_payout`, which reads no clock, then posts the
+transfer and estimates correctly. Two transactions, each fee-estimable, in place
+of one that is not. Both paths share one gate and one booking function, so the
+round reaches FINALIZED exactly once whichever door is used.
+
+The part worth keeping is the smaller lesson underneath. Pulling the shared gate
+out into a helper meant `claim_remainder`'s own body no longer contained
+`self._now()`, and the audit — which matched on the method body — stopped
+reporting any clock-plus-transfer method at all. The warning went quiet because
+of a refactor rather than because of a fix, which is the most comfortable way
+for a check to fail. It walks the call graph now.
 
 ### And every evaluation settled first time
 
@@ -402,7 +427,7 @@ because you never mention what anything costs" is a fix.
   and the adjectival one does not move at all.
 - **Source:** <https://github.com/kenil1710/grantjudge>
 
-673 offline tests — including a hundred and twenty randomised lifecycles that
+682 offline tests — including a hundred and twenty randomised lifecycles that
 each have to drain to exactly zero — and a cross-file audit that re-derives
 every number the repository quotes about itself. Two deployed instances of the
 same source: one enforcing the brief exactly, one with the windows in minutes so

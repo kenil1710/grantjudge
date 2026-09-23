@@ -69,8 +69,9 @@ export default function MyProposalsPage() {
               {formatGen(ledger)} GEN
             </div>
             <p style={{ margin: "6px 0 0", fontSize: "0.79rem", color: "var(--muted)", maxWidth: 460, lineHeight: 1.6 }}>
-              Refunds from calls the contract refused, a cancelled pool, or a
-              returned appeal stake. Awards are claimed per proposal below.
+              Refunds from calls the contract refused, a cancelled pool, a
+              returned appeal stake, or a remainder you booked from a round.
+              Awards are claimed per proposal below.
             </p>
           </div>
           <TxButton

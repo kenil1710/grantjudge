@@ -4147,6 +4147,104 @@ class TestClaims(unittest.TestCase):
         out = send(c, TREASURER, 0, "claim_remainder", rid)
         self.assertTrue(rejected(out))
 
+    # --- the fallback: the same claim, without the transfer ----------------
+    #
+    # `claim_remainder` is the only write that both reads the block clock and
+    # posts a transfer, and on Studio Dev that combination cannot be fee-
+    # estimated (docs/PROBE.md 4b). `claim_remainder_fallback` books the same
+    # remainder and leaves `claim_payout` to post the transfer. These tests
+    # exist to prove it is the SAME claim - same gate, same books, same total -
+    # and not a second way to be paid.
+
+    def test_the_fallback_credits_without_transferring(self):
+        c, rid, winner, _ = self.settled()
+        set_now(NOW + 4000 + 601)
+        before = len(TRANSFERS)
+        out = send(c, TREASURER, 0, "claim_remainder_fallback", rid)
+        self.assertTrue(ok(out))
+        self.assertGreater(int(out["remainder_wei"]), 0)
+        self.assertEqual(int(out["paid_wei"]), 0)
+        self.assertEqual(len(TRANSFERS), before)
+        self.assertEqual(int(view(c, STRANGER, "payout_of", TREASURER)["payout_wei"]),
+                         int(out["credited_wei"]))
+
+    def test_the_fallback_then_claim_payout_pays_the_same_amount(self):
+        """THE POINT OF THE METHOD, asserted against the ordinary path rather
+        than against a number typed in here: two transactions where one would
+        not estimate, and the treasurer ends up with exactly the same wei."""
+        one, rid_one, _, _ = self.settled()
+        set_now(NOW + 4000 + 601)
+        direct = send(one, TREASURER, 0, "claim_remainder", rid_one)
+
+        two, rid_two, _, _ = self.settled()
+        set_now(NOW + 4000 + 601)
+        booked = send(two, TREASURER, 0, "claim_remainder_fallback", rid_two)
+        swept = send(two, TREASURER, 0, "claim_payout")
+
+        self.assertTrue(ok(direct) and ok(booked) and ok(swept))
+        self.assertEqual(int(booked["remainder_wei"]), int(direct["remainder_wei"]))
+        self.assertEqual(int(swept["paid_wei"]), int(direct["paid_wei"]))
+
+    def test_the_fallback_closes_the_round(self):
+        c, rid, winner, _ = self.settled()
+        set_now(NOW + 4000 + 601)
+        send(c, TREASURER, 0, "claim_remainder_fallback", rid)
+        self.assertEqual(view(c, STRANGER, "get_round", rid)["status"],
+                         "FINALIZED")
+
+    def test_the_fallback_honours_the_appeal_window(self):
+        c, rid, winner, _ = self.settled()
+        out = send(c, TREASURER, 0, "claim_remainder_fallback", rid)
+        self.assertTrue(rejected(out))
+        self.assertIn("appeal window", out["reason"])
+
+    def test_only_the_treasurer_uses_the_fallback(self):
+        c, rid, winner, _ = self.settled()
+        set_now(NOW + 4000 + 601)
+        out = send(c, STRANGER, 0, "claim_remainder_fallback", rid)
+        self.assertTrue(rejected(out))
+
+    def test_the_two_remainder_paths_cannot_both_be_taken(self):
+        """Either door, once. A remainder booked by the fallback is gone from
+        the round, so the ordinary path has nothing left to pay - and the other
+        way round."""
+        c, rid, winner, _ = self.settled()
+        set_now(NOW + 4000 + 601)
+        self.assertTrue(ok(send(c, TREASURER, 0, "claim_remainder_fallback", rid)))
+        self.assertTrue(rejected(send(c, TREASURER, 0, "claim_remainder", rid)))
+
+        d, rid_d, _, _ = self.settled()
+        set_now(NOW + 4000 + 601)
+        self.assertTrue(ok(send(d, TREASURER, 0, "claim_remainder", rid_d)))
+        self.assertTrue(rejected(
+            send(d, TREASURER, 0, "claim_remainder_fallback", rid_d)))
+
+    def test_the_fallback_works_while_paused(self):
+        c, rid, winner, _ = self.settled()
+        send(c, OWNER, 0, "set_paused", True)
+        set_now(NOW + 4000 + 601)
+        self.assertTrue(ok(send(c, TREASURER, 0, "claim_remainder_fallback", rid)))
+        self.assertTrue(ok(send(c, TREASURER, 0, "claim_payout")))
+
+    def test_the_pool_drains_to_zero_through_the_fallback(self):
+        """RULE 7 HOLDS ON THE SECOND DOOR TOO. Same assertion as the ordinary
+        path's, driven through the fallback and the sweep."""
+        c, rid, winner, _ = self.settled()
+        send(c, ALICE, 0, "claim_award", rid, winner)
+        set_now(NOW + 4000 + 601)
+        send(c, TREASURER, 0, "claim_remainder_fallback", rid)
+        send(c, TREASURER, 0, "claim_payout")
+        self.assertEqual(round_locked(c, rid), 0)
+        self.assertEqual(int(c.locked_wei), 0)
+        self.assertEqual(int(c.payable_wei), 0)
+        self.assertEqual(int(c.balance_wei), 0)
+
+    def test_the_fallback_never_raises(self):
+        c, rid, winner, _ = self.settled()
+        for arg in (None, "x", 0, 9999):
+            self.assertIsInstance(
+                send(c, TREASURER, 0, "claim_remainder_fallback", arg), dict)
+
     def test_the_pool_drains_to_exactly_zero(self):
         """RULE 7, PER ROUND, DRIVEN TO THE END. After the winner has claimed
         and the treasurer has taken the remainder, the round's locked slice is
@@ -4879,7 +4977,8 @@ class TestStaticInvariants(unittest.TestCase):
 
     def test_the_money_methods_are_never_gated_on_pause(self):
         must_be_open = ("evaluate", "finalize", "contest", "settle_stalled",
-                        "claim_award", "claim_remainder", "claim_payout",
+                        "claim_award", "claim_remainder",
+                        "claim_remainder_fallback", "claim_payout",
                         "cancel_round")
         for m in self.writes():
             if m.name not in must_be_open:
@@ -5412,7 +5511,8 @@ class TestStateMachine(unittest.TestCase):
                              ("evaluate", (rid, pid)),
                              ("finalize", (rid,)),
                              ("cancel_round", (rid,)),
-                             ("claim_remainder", (rid,))):
+                             ("claim_remainder", (rid,)),
+                             ("claim_remainder_fallback", (rid,))):
             value = int(c.spam_stake_wei) if method == "submit_proposal" else 0
             out = send(c, TREASURER if method != "submit_proposal" else BOB,
                        value, method, *args)
@@ -5450,7 +5550,8 @@ class TestStateMachine(unittest.TestCase):
                              ("evaluate", (rid, 1)),
                              ("finalize", (rid,)),
                              ("cancel_round", (rid,)),
-                             ("claim_remainder", (rid,))):
+                             ("claim_remainder", (rid,)),
+                             ("claim_remainder_fallback", (rid,))):
             value = int(c.spam_stake_wei) if method == "submit_proposal" else 0
             out = send(c, TREASURER if method != "submit_proposal" else BOB,
                        value, method, *args)

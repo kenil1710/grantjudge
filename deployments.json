@@ -4,10 +4,10 @@
       "network": "studiodev",
       "chain_id": 61997,
       "GrantJudge": {
-        "address": "0x005Fa604257838Bc760Af30857719aBffce12238",
-        "deploy_tx": "0x0bc9c378ad2a36cc8443f78f7796d75268bfc9f6371f6535cfee690e64cc1e8f",
-        "source_bytes": 196992,
-        "source_sha256": "6dd38d1718b54125491b0b3a228535e15a7a7c60db8b36d7f1cf20e41359ca13",
+        "address": "0xafC8966b867421D4bF77a3440da527dB70BD2059",
+        "deploy_tx": "0x8e53fbecb5fa3a782c3dba9576200900a8af3407b514ca1cb96eebb5d49537d5",
+        "source_bytes": 203957,
+        "source_sha256": "3d6cc69eb8ff06a4f5e9a42b5cb795a84ce19b7947b122b1c38f1abf0fb995da",
         "owner": "0xfC5fd0367aCEc924B9a28c7847C8f9D81B4f906B",
         "rubric_version": "1.0.0",
         "spam_stake_wei": "100000000000000000",
@@ -16,14 +16,14 @@
         "stall_ttl_s": 172800,
         "round_cooldown_s": 3600,
         "min_pool_wei": "1000000000000000000",
-        "deployed_at": "2026-09-22T05:02:08.168Z"
+        "deployed_at": "2026-09-23T08:47:14.823Z"
       },
       "explorer": "https://explorer-studio-dev.genlayer.com/",
       "GrantJudgeDemo": {
-        "address": "0xaba5752CdB28DD354683B0FBBc1E47daD9AAB153",
-        "deploy_tx": "0x20819aedacec68704ced8f3c0718f6a8885bfcae65fdae452305943d83852537",
-        "source_bytes": 196992,
-        "source_sha256": "6dd38d1718b54125491b0b3a228535e15a7a7c60db8b36d7f1cf20e41359ca13",
+        "address": "0xB32cA6B2a0e711C69391c3B5bdC9A610F395f212",
+        "deploy_tx": "0x8a54e219920e75e04a70fb2db70f9f163212c198eb7e6c49741dbf7eeb837522",
+        "source_bytes": 203957,
+        "source_sha256": "3d6cc69eb8ff06a4f5e9a42b5cb795a84ce19b7947b122b1c38f1abf0fb995da",
         "owner": "0xfC5fd0367aCEc924B9a28c7847C8f9D81B4f906B",
         "rubric_version": "1.0.0",
         "spam_stake_wei": "100000000000000000",
@@ -32,20 +32,20 @@
         "stall_ttl_s": 240,
         "round_cooldown_s": 0,
         "min_pool_wei": "1000000000000000000",
-        "deployed_at": "2026-09-22T05:02:15.450Z"
+        "deployed_at": "2026-09-23T08:47:31.186Z"
       },
       "GrantConsumer": {
-        "address": "0x96F8502d5018500399010FBD3e333d518752557E",
-        "deploy_tx": "0xaea36150ff450dd62ed16e523fdc5f21b76e1553a28d6ab76ede6f1a0ed1ae96",
+        "address": "0x49E309363A14bD65F6B80Aa616D13024bAe899A7",
+        "deploy_tx": "0xa1a4bbe6b2f6dee6b5d8642bf773f48d3ffac3c9315dbb0ad23509286531f62e",
         "source_bytes": 16610,
         "source_sha256": "71fe8e18a7ba01d6e660f8c92cda19f7332c22f589999feeeb99524be0160c37",
-        "judge": "0xaba5752CdB28DD354683B0FBBc1E47daD9AAB153",
+        "judge": "0xB32cA6B2a0e711C69391c3B5bdC9A610F395f212",
         "min_score": 400,
         "max_age_seconds": 7776000,
         "owner": "0xfC5fd0367aCEc924B9a28c7847C8f9D81B4f906B",
         "custody": false,
         "payable_methods": 0,
-        "deployed_at": "2026-09-22T05:02:21.669Z"
+        "deployed_at": "2026-09-23T08:47:44.510Z"
       }
     }
   }

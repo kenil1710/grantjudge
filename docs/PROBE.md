@@ -201,7 +201,8 @@ timestamp roughly two years stale, so `claim_remainder` is simulated on the
 wrong side of its own time gate. It refuses, emits no transfer, and the
 estimator therefore budgets nothing for a message the real execution does post.
 
-**The correlation is exact.** Of GrantJudge's twelve public writes:
+**The correlation is exact.** Of GrantJudge's public writes, as they stood
+when this was measured — before `claim_remainder_fallback` was added below:
 
 | | reads the block clock | posts a transfer | estimate correct |
 |---|---|---|---|
@@ -237,9 +238,85 @@ magnitude.
 **The lesson for anyone building on GenLayer.** If a method both reads
 `gl.message.raw["datetime"]` and posts a value transfer, its fee estimate on
 Studio Dev will be wrong whenever the stale clock puts the simulation on the
-other side of a time gate. `tools/audit.py` now flags that combination, so a
-future contract meets this as a warning at build time rather than as a reverted
+other side of a time gate. `tools/audit.py` flags that combination, so a future
+contract meets this as a warning at build time rather than as a reverted
 transaction.
+
+### What was done about it: `claim_remainder_fallback`
+
+The table above is also the fix, read the other way. Of the four combinations of
+*reads the clock* and *posts a transfer*, three estimate correctly. Only the
+fourth does not. So the remainder claim was split along exactly that line:
+
+| | reads the clock | posts a transfer | estimate |
+|---|---|---|---|
+| `claim_remainder_fallback(round_id)` | yes | **no** | correct — nothing to budget |
+| `claim_payout()` | **no** | yes | correct — no time gate to be simulated on the wrong side of |
+
+The fallback applies the identical gate — same treasurer check, same
+cancellation check, same status check, same appeal window — and books the
+remainder into the treasurer's claimable balance. `claim_payout()` then posts
+the transfer. Two transactions, each of them fee-estimable, in place of one that
+is not.
+
+`node test/remainder_fallback.mjs` drives exactly that on chain, in one run: it
+brings a round to RANKED with the whole pool as remainder without needing an
+evaluation, then calls `claim_remainder`, `claim_remainder_fallback` and
+`claim_payout` back to back on the same round and reports which of them
+settled. The one-call form failing there is the measurement, not a broken test —
+and a run where it unexpectedly succeeds says so loudly, because that would mean
+the simulator had been fixed.
+
+**Measured, on `0xf488667E…`, round 1 — a 1 GEN pool that no proposal
+qualified for, so the whole pool fell to the remainder:**
+
+```
+== the fee estimates, side by side ==
+    claim_remainder            feeValue=378492000010352 allocations=NONE
+    claim_remainder_fallback   feeValue=378492000010352 allocations=NONE
+
+== 1. claim_remainder, the one-transaction form ==
+    tx ACCEPTED · (return value not decodable — reading state instead)
+    it did not settle the round — this is the gap the fallback exists to close
+  ok   a failed claim_remainder left the round untouched — RANKED, 1.000000 GEN still there
+
+== 2. claim_remainder_fallback ==
+    tx ACCEPTED · OK
+  ok   the fallback closes the round — FINALIZED
+  ok   the round no longer holds the remainder — 0.000000 GEN
+  ok   the remainder is now the treasurer's to sweep — 1.000000 GEN claimable
+
+== 3. claim_payout ==
+    tx ACCEPTED · OK
+  ok   the sweep empties the treasurer's ledger — 1.000000 GEN swept, 0.000000 left
+  ok   balance == locked + payable still holds
+
+  THE TREASURER GOT THE REMAINDER OUT.
+```
+
+Three things in that run are worth naming. The one-call form's transaction
+reached ACCEPTED and still left the round RANKED with its remainder intact —
+a reverted internal message does not fail the parent transaction, which is
+exactly why this was worth measuring rather than assuming. The fallback settled
+on the first attempt. And the ledger identity held across both, which is the
+check that would have caught a second door that paid twice.
+
+**What it is not.** It is not a second way to be paid, and it is not a fee
+budget chosen by the contract — a contract cannot choose one, which is what the
+five rows above establish. Both remainder paths run through the same
+`_remainder_gate` and the same `_book_remainder`, so the round reaches FINALIZED
+exactly once and the remainder is credited exactly once whichever door is used.
+The offline suite drives the pool to zero through the fallback and takes each
+door after the other, requiring the second refused.
+
+**And the check that nearly switched itself off.** Pulling the gate out of
+`claim_remainder` into `_remainder_gate` meant the method's own bytes no longer
+contained `self._now()`, and the audit — which matched on the method body —
+stopped reporting any clock-plus-transfer method at all. The warning went quiet
+because of a refactor, not because of a fix. `tools/audit.py` now resolves the
+combination **through the call graph**, walking call nodes rather than text, and
+it walks call nodes specifically because these docstrings name `_settle_payout`
+in order to explain which path posts a transfer and which does not.
 
 ---
 
