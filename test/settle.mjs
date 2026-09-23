@@ -144,9 +144,19 @@ if (alsoRemainder) {
   } else if (round.contest_open) {
     say(`  the appeal window is open for another ${round.contest_closes_at - Math.floor(Date.now() / 1000)}s; the remainder is not the treasurer's yet`);
   } else {
-    const out = await who.client.send("claim_remainder", [roundId]);
+    // TWO STEPS, for the reason docs/PROBE.md 4b measured: `claim_remainder`
+    // both reads the block clock and posts a transfer, and Studio Dev cannot
+    // fee-estimate that combination, so it strands the remainder it was meant
+    // to pay. `claim_remainder_fallback` books it without posting anything and
+    // `claim_payout` — which reads no clock — then posts the transfer.
+    const out = await who.client.send("claim_remainder_fallback", [roundId]);
     const json = returnedJson(out);
-    say(`  claim_remainder as ${who.role}: ${json?.status} ${json?.remainder_wei ? gen(json.remainder_wei) + " GEN" : json?.reason ?? ""}`);
+    say(`  claim_remainder_fallback as ${who.role}: ${json?.status} ${json?.credited_wei ? gen(json.credited_wei) + " GEN booked" : json?.reason ?? ""}`);
+    if (json?.status === "OK") {
+      const swept = await who.client.send("claim_payout", []);
+      const sj = returnedJson(swept);
+      say(`  claim_payout as ${who.role}: ${sj?.status} ${sj?.paid_wei ? gen(sj.paid_wei) + " GEN" : sj?.reason ?? ""}`);
+    }
   }
 }
 

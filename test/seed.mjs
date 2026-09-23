@@ -462,10 +462,32 @@ async function seedDemo() {
   log(`  waiting ${config.contest_window_s + 20}s for the appeal windows to close…`);
   await sleep((config.contest_window_s + 20) * 1000);
 
+  /*
+   * THE REMAINDER IS TAKEN IN TWO STEPS, NOT ONE, AND THAT IS DELIBERATE.
+   *
+   * `claim_remainder` is the only write in GrantJudge that both reads the block
+   * clock and posts a value transfer, and on Studio Dev that combination cannot
+   * be fee-estimated: the simulator runs ~664 days stale, lands on the wrong
+   * side of the round's own appeal window, takes the refusal branch, emits no
+   * message, and budgets nothing for a transfer the real execution does post.
+   * The transaction then fails and the remainder stays locked. docs/PROBE.md 4b.
+   *
+   * An earlier seed run hit exactly that on rounds 1 and 4 — four failed checks
+   * and 1.0 GEN stranded — while round 2 passed only because its remainder was
+   * zero and so no transfer was ever posted. A path that works only when there
+   * is no money to move is not a settlement path.
+   *
+   * So: `claim_remainder_fallback` books the remainder to the treasurer's
+   * claimable balance and posts nothing, then `claim_payout` — which reads no
+   * clock — posts the transfer. Two fee-estimable transactions in place of one
+   * that is not. Same gate, same books, same wei.
+   */
+  const sweepers = new Set();
   for (const [roundId, role] of [[round1, "treasurer1"], [round2, "treasurer2"], [round4, "treasurer1"]]) {
-    const res = await call(clients[role], role, "claim_remainder", [roundId]);
-    check(res.json?.status === "OK", `remainder claimed: round ${roundId}`,
-      `${gen(res.json?.remainder_wei ?? 0)} GEN, round now ${res.json?.round_status}`);
+    const res = await call(clients[role], role, "claim_remainder_fallback", [roundId]);
+    check(res.json?.status === "OK", `remainder booked: round ${roundId}`,
+      `${gen(res.json?.credited_wei ?? res.json?.remainder_wei ?? 0)} GEN, round now ${res.json?.round_status}`);
+    sweepers.add(role);
     const rnd = await reader.view("get_round", [roundId]);
     check(BigInt(rnd.locked_wei) === 0n,
       `round ${roundId} pool drained to exactly zero`,
@@ -483,6 +505,19 @@ async function seedDemo() {
       contested: rnd.contested_count,
       locked_wei: rnd.locked_wei,
     });
+  }
+
+  // Step two: the booked remainders are now ordinary claimable balances, so one
+  // sweep per treasurer takes every round they closed. `claim_payout` reads no
+  // clock, so its fee estimate is correct and the transfer actually posts.
+  for (const role of sweepers) {
+    const res = await call(clients[role], role, "claim_payout", []);
+    check(res.json?.status === "OK", `remainder swept: ${role}`,
+      `${gen(res.json?.paid_wei ?? 0)} GEN`);
+    const owed = await reader.view("payout_of", [clients[role].account.address]);
+    check(BigInt(owed?.payout_wei ?? 0) === 0n,
+      `${role} has nothing left to sweep`,
+      `${owed?.payout_wei} wei still owed`);
   }
 
   /* --- the books ------------------------------------------------------- */
