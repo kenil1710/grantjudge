@@ -336,7 +336,7 @@ docs/WORKED-EXAMPLE.md       three filings, scored, with every number computed
 docs/PROBE.md                what was measured against the live network
 docs/EVIDENCE.md             what the seed run actually did, generated not typed
 docs/ARTICLE.md              the write-up
-docs/seed-run.log            the raw log of the run EVIDENCE.md describes
+docs/seed-run.log            the raw log of the seed run, failures and all
 docs/seed-evidence.json      the machine-readable form
 ```
 
@@ -394,16 +394,20 @@ the record, and this is a reader of it. An evidence document whose numbers were
 copied by a person keeps looking healthy after the contract stops agreeing with
 it.
 
-> **The evidence document describes the previous deployment**, at the addresses
-> named in its own table — `0x005Fa604…` and `0xaba5752C…`. Adding
-> `claim_remainder_fallback` changed the contract bytes, and a GenLayer contract
-> is not upgradeable in place, so the redeploy that carried the fix also moved
-> every address. The addresses in `deployments.json` are the new ones. Nothing
-> in EVIDENCE.md is retracted — it is a true record of a real run, read off the
-> chain, and those rounds are still there to read — but it predates the fix and
-> is not regenerated, because regenerating it against an empty deployment would
-> replace a record of what happened with a record of nothing having happened
-> yet. `node test/seed.mjs` is what produces a new one.
+> **Why `docs/seed-run.log` ends in four failures and `docs/EVIDENCE.md` says
+> 21/21.** They describe two different moments, and both are true.
+>
+> The seed run that produced the log still called `claim_remainder` — the
+> one-transaction form — and it failed on rounds 1 and 4 exactly as
+> [`docs/PROBE.md` §4b](docs/PROBE.md) predicts, stranding 0.2 and 0.8 GEN.
+> Round 2 passed only because its remainder was zero, so no transfer was ever
+> posted: a settlement path that works only when there is no money to move.
+>
+> `test/seed.mjs` and `test/settle.mjs` now take the two-step path
+> (`claim_remainder_fallback`, then `claim_payout`), the two stranded
+> remainders were taken that way, and `test/collect.mjs` re-read the chain
+> afterwards. EVIDENCE.md is that read. The log is not rewritten to match it —
+> a log edited to agree with a later outcome is not a log.
 
 ---
 

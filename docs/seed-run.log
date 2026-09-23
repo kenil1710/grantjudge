@@ -1,123 +1,123 @@
 
-=== GrantJudgeDemo  0xaba5752CdB28DD354683B0FBBc1E47daD9AAB153
+=== GrantJudgeDemo  0xB32cA6B2a0e711C69391c3B5bdC9A610F395f212
   funding   0 of 11 accounts topped up
   stakes     spam 0.10 GEN · appeal 0.20 GEN
   windows    appeal 300s · stall 240s
 
   ROUND 1 — GenLayer Ecosystem Growth, 5 GEN, 4 criteria, 2 seats, 4.00 bar
-  treasurer1  create_round     OK        10s  
+  treasurer1  create_round     OK        11s  
      ok   round 1 created — id 1
-  builder1    submit_proposal  OK        7s  
+  builder1    submit_proposal  OK        9s  
      ok   proposal filed: indexer — id 1
-  builder2    submit_proposal  OK        7s  
+  builder2    submit_proposal  OK        12s  
      ok   proposal filed: testkit — id 2
-  builder3    submit_proposal  OK        7s  
+  builder3    submit_proposal  OK        13s  
      ok   proposal filed: explorer — id 3
-  builder4    submit_proposal  OK        11s  
+  builder4    submit_proposal  OK        13s  
      ok   proposal filed: moonshot — id 4
 
   ROUND 2 — Developer Tooling, 3 GEN, 3 criteria, 2 seats, 3.00 bar
-  treasurer2  create_round     OK        7s  
+  treasurer2  create_round     OK        10s  
      ok   round 2 created — id 2
   builder5    submit_proposal  OK        13s  
-  builder1    submit_proposal  OK        12s  
+  builder1    submit_proposal  OK        13s  
 
   ROUND 3 — Security Audits, cancelled before anybody filed
-  treasurer3  create_round     OK        9s  
-  treasurer3  cancel_round     OK        10s  
+  treasurer3  create_round     OK        7s  
+  treasurer3  cancel_round     OK        7s  
      ok   round 3 cancelled
      ok   cancel refunded the whole pool — 2.000000 GEN
      ok   the pool is in the treasurer's claimable balance
-  treasurer3  claim_payout     OK        13s  
+  treasurer3  claim_payout     OK        8s  
 
   ROUND 4 — Docs and Translation, 2 GEN, 1 seat, one proposal nobody scores
-  treasurer1  create_round     OK        11s  
+  treasurer1  create_round     OK        8s  
      ok   round 4 created — id 4
   builder2    submit_proposal  OK        11s  
-  builder3    submit_proposal  OK        7s  
-  builder4    submit_proposal  OK        11s  
+  builder3    submit_proposal  OK        9s  
+  builder4    submit_proposal  OK        8s  
 
   ROUND 5 — Q4 Ecosystem Fund, left OPEN for the UI
-  treasurer2  create_round     OK        8s  
+  treasurer2  create_round     OK        9s  
      ok   round 5 created and left open — id 5
 
-  waiting 870s for the last submission window to close…
+  waiting 872s for the last submission window to close…
 
   evaluating round 1 — one consensus round per proposal
-  trigger     evaluate         OK        13s  — Strongest on Team experience (5/7). weakest on Technical feasibility (4/7). The filing carries 44 figures, 5 timing markers, a costed budget, named track record, stated risks. Weighted total 4.76/7.00 with overall quality 6/7 and completeness 4/7, which clears the round's 4.00 threshold.
-     ok   scored: indexer — 4,5,5,5 q6 c4 → 4.76/7.00 clears the bar (1 attempt, 13s)
-  trigger     evaluate         OK        15s  — Strongest on Technical feasibility (6/7). weakest on Community impact (4/7). The filing carries 30 figures, 3 timing markers, a costed budget, named track record, stated risks. Weighted total 5.40/7.00 with overall quality 6/7 and completeness 4/7, which clears the round's 4.00 threshold.
-     ok   scored: testkit — 6,6,4,6 q6 c4 → 5.40/7.00 clears the bar (1 attempt, 15s)
-  trigger     evaluate         OK        16s  — Strongest on Technical feasibility (1/7). weakest on Team experience (0/7). The filing carries named track record. Weighted total 0.54/7.00 with overall quality 1/7 and completeness 2/7, which does not clear the round's 4.00 threshold.
-     ok   scored: explorer — 1,0,0,0 q1 c2 → 0.54/7.00 below the bar (1 attempt, 16s)
-  trigger     evaluate         OK        12s  — Strongest on Technical feasibility (0/7). The filing carries 1 timing marker, named track record. 9 filler phrases cost it bracket room. Weighted total 0.20/7.00 with overall quality 0/7 and completeness 2/7, which does not clear the round's 4.00 threshold.
-     ok   scored: moonshot — 0,0,0,0 q0 c2 → 0.20/7.00 below the bar (1 attempt, 12s)
-  trigger     finalize         OK        6s  
-     ok   round 1 ranked — 2 funded, 2 rejected, 4.342520 GEN allocated
-     #1 proposal 2 FUNDED     5.40/7.00  2.000000 GEN
-     #2 proposal 1 FUNDED     4.76/7.00  2.342520 GEN
-     #3 proposal 3 REJECTED   0.54/7.00  0.000000 GEN
+  trigger     evaluate         OK        18s  — Strongest on Team experience (6/7). weakest on Technical feasibility (4/7). The filing carries 44 figures, 5 timing markers, a costed budget, named track record, stated risks. Weighted total 5.22/7.00 with overall quality 7/7 and completeness 4/7, which clears the round's 4.00 threshold.
+     ok   scored: indexer — 4,6,5,6 q7 c4 → 5.22/7.00 clears the bar (1 attempt, 18s)
+  trigger     evaluate         OK        12s  — Strongest on Technical feasibility (6/7). weakest on Community impact (4/7). The filing carries 30 figures, 3 timing markers, a costed budget, named track record, stated risks. Weighted total 5.20/7.00 with overall quality 6/7 and completeness 4/7, which clears the round's 4.00 threshold.
+     ok   scored: testkit — 6,5,4,6 q6 c4 → 5.20/7.00 clears the bar (1 attempt, 12s)
+  trigger     evaluate         OK        19s  — Strongest on Technical feasibility (1/7). weakest on Team experience (0/7). The filing carries named track record. Weighted total 0.44/7.00 with overall quality 0/7 and completeness 2/7, which does not clear the round's 4.00 threshold.
+     ok   scored: explorer — 1,0,0,0 q0 c2 → 0.44/7.00 below the bar (1 attempt, 19s)
+  trigger     evaluate         OK        16s  — Strongest on Technical feasibility (0/7). The filing carries 1 timing marker, named track record. 9 filler phrases cost it bracket room. Weighted total 0.20/7.00 with overall quality 0/7 and completeness 2/7, which does not clear the round's 4.00 threshold.
+     ok   scored: moonshot — 0,0,0,0 q0 c2 → 0.20/7.00 below the bar (1 attempt, 16s)
+  trigger     finalize         OK        14s  
+     ok   round 1 ranked — 2 funded, 2 rejected, 4.504798 GEN allocated
+     #1 proposal 1 FUNDED     5.22/7.00  2.504798 GEN
+     #2 proposal 2 FUNDED     5.20/7.00  2.000000 GEN
+     #3 proposal 3 REJECTED   0.44/7.00  0.000000 GEN
      #4 proposal 4 REJECTED   0.20/7.00  0.000000 GEN
-     ok   awards + remainder = pool, exactly — 4.342520 + 0.657480 = 5.00 GEN
+     ok   awards + remainder = pool, exactly — 4.504798 + 0.495202 = 5.00 GEN
 
   two appeals: one with evidence, one with adjectives
-  builder3    contest          OK        15s  — Strongest on Technical feasibility (6/7). weakest on Budget reasonableness (4/7). The filing carries 23 figures, 3 timing markers, a costed budget, named track record, stated risks. Weighted total 5.28/7.00 with overall quality 6/7 and completeness 4/7, which clears the round's 4.00 threshold.
-     ok   the evidenced appeal won — 0.54 → 5.28, awarded 0.757480 GEN
-     partially funded: the remainder could not cover 0.742520 GEN of the full share, and the shortfall is named rather than swallowed
-  builder4    contest          OK        26s  — Strongest on Technical feasibility (0/7). The filing carries 2 timing markers, named track record. 10 filler phrases cost it bracket room. Weighted total 0.20/7.00 with overall quality 0/7 and completeness 2/7, which does not clear the round's 4.00 threshold.
+  builder3    contest          OK        25s  — Strongest on Technical feasibility (6/7). weakest on Budget reasonableness (4/7). The filing carries 23 figures, 3 timing markers, a costed budget, named track record, stated risks. Weighted total 5.58/7.00 with overall quality 7/7 and completeness 4/7, which clears the round's 4.00 threshold.
+     ok   the evidenced appeal won — 0.44 → 5.58, awarded 0.595202 GEN
+     partially funded: the remainder could not cover 0.904798 GEN of the full share, and the shortfall is named rather than swallowed
+  builder4    contest          OK        25s  — Strongest on Technical feasibility (0/7). The filing carries 2 timing markers, named track record. 10 filler phrases cost it bracket room. Weighted total 0.20/7.00 with overall quality 0/7 and completeness 2/7, which does not clear the round's 4.00 threshold.
      ok   the adjectival appeal lost — 0.20/7.00, stake forfeited to the pool
 
   evaluating round 2 — two proposals, two seats, a proportional split
-  trigger     evaluate         OK        12s  — Strongest on Developer impact (6/7). weakest on Technical feasibility (4/7). The filing carries 35 figures, 3 timing markers, a costed budget, named track record, stated risks. Weighted total 4.66/7.00 with overall quality 6/7 and completeness 3/7, which clears the round's 3.00 threshold.
-     ok   scored: debugger — 4,6,4 → 4.66/7.00 (1 attempt)
-  trigger     evaluate         OK        10s  — Strongest on Developer impact (5/7). weakest on Technical feasibility (4/7). The filing carries 36 figures, 4 timing markers, a costed budget, named track record, stated risks. Weighted total 4.48/7.00 with overall quality 7/7 and completeness 3/7, which clears the round's 3.00 threshold.
-     ok   scored: typegen — 4,5,4 → 4.48/7.00 (1 attempt)
+  trigger     evaluate         OK        16s  — Strongest on Developer impact (5/7). weakest on Technical feasibility (4/7). The filing carries 35 figures, 3 timing markers, a costed budget, named track record, stated risks. Weighted total 4.38/7.00 with overall quality 6/7 and completeness 3/7, which clears the round's 3.00 threshold.
+     ok   scored: debugger — 4,5,4 → 4.38/7.00 (1 attempt)
+  trigger     evaluate         OK        19s  — Strongest on Developer impact (5/7). weakest on Technical feasibility (4/7). The filing carries 36 figures, 4 timing markers, a costed budget, named track record, stated risks. Weighted total 4.38/7.00 with overall quality 6/7 and completeness 3/7, which clears the round's 3.00 threshold.
+     ok   scored: typegen — 4,5,4 → 4.38/7.00 (1 attempt)
   trigger     finalize         OK        8s  
-     #1 proposal 5 FUNDED     4.66/7.00  1.529540 GEN
-     #2 proposal 6 FUNDED     4.48/7.00  1.470460 GEN
+     #1 proposal 5 FUNDED     4.38/7.00  1.500000 GEN
+     #2 proposal 6 FUNDED     4.38/7.00  1.500000 GEN
      ok   both round 2 proposals funded
-     ok   the split is proportional to the scores — scores 466:448 → awards 1.529540:1.470460
+     ok   the split is proportional to the scores — scores 438:438 → awards 1.500000:1.500000
 
   evaluating round 4 — and leaving one proposal for the stall path
-  trigger     evaluate         OK        12s  — Strongest on Developer impact (5/7). weakest on Technical feasibility (4/7). The filing carries 25 figures, 2 timing markers, a costed budget, named track record, stated risks. Weighted total 4.38/7.00 with overall quality 6/7 and completeness 3/7, which clears the round's 3.00 threshold.
-     ok   scored: round 4 translation — → 4.38/7.00
-  trigger     evaluate         OK        14s  — Strongest on Developer impact (6/7). weakest on Budget reasonableness (2/7). The filing carries 35 figures, 3 timing markers, a costed budget, named track record, stated risks. Weighted total 4.16/7.00 with overall quality 5/7 and completeness 3/7, which clears the round's 3.00 threshold.
-     ok   scored: round 4 debugger — → 4.16/7.00
+  trigger     evaluate         OK        18s  — Strongest on Developer impact (6/7). weakest on Technical feasibility (4/7). The filing carries 25 figures, 2 timing markers, a costed budget, named track record, stated risks. Weighted total 4.66/7.00 with overall quality 6/7 and completeness 3/7, which clears the round's 3.00 threshold.
+     ok   scored: round 4 translation — → 4.66/7.00
+  trigger     evaluate         OK        29s  — Strongest on Developer impact (5/7). weakest on Technical feasibility (4/7). The filing carries 35 figures, 3 timing markers, a costed budget, named track record, stated risks. Weighted total 4.38/7.00 with overall quality 6/7 and completeness 3/7, which clears the round's 3.00 threshold.
+     ok   scored: round 4 debugger — → 4.38/7.00
 
   waiting 260s for the stall window on the unscored proposal…
-  outsider    settle_stalled   OK        12s  
+  outsider    settle_stalled   OK        14s  
      ok   a stranger settled the stuck proposal — deposit of 0.100000 GEN returned in full
-  trigger     finalize         OK        7s  
-     #1 proposal 7 FUNDED     4.38/7.00  1.200000 GEN
-     #2 proposal 9 QUALIFIED  4.16/7.00  0.000000 GEN
+  trigger     finalize         OK        9s  
+     #1 proposal 7 FUNDED     4.66/7.00  1.200000 GEN
+     #2 proposal 9 QUALIFIED  4.38/7.00  0.000000 GEN
      ok   a proposal above the bar but out of seats keeps its deposit and gets no award
 
   claims — every award, every returned deposit
   builder1    claim_award      OK        10s  
-     ok   claimed: round 1 proposal 1 (indexer) — 2.442520 GEN
-  builder2    claim_award      OK        7s  
+     ok   claimed: round 1 proposal 1 (indexer) — 2.604798 GEN
+  builder2    claim_award      OK        10s  
      ok   claimed: round 1 proposal 2 (testkit) — 2.100000 GEN
-  builder3    claim_award      OK        9s  
-     ok   claimed: round 1 proposal 3 (explorer) — 1.057480 GEN
-  builder5    claim_award      OK        11s  
-     ok   claimed: round 2 proposal 5 (debugger) — 1.629540 GEN
-  builder1    claim_award      OK        9s  
-     ok   claimed: round 2 proposal 6 (typegen) — 1.570460 GEN
-  builder2    claim_award      OK        13s  
+  builder3    claim_award      OK        10s  
+     ok   claimed: round 1 proposal 3 (explorer) — 0.895202 GEN
+  builder5    claim_award      OK        10s  
+     ok   claimed: round 2 proposal 5 (debugger) — 1.600000 GEN
+  builder1    claim_award      OK        15s  
+     ok   claimed: round 2 proposal 6 (typegen) — 1.600000 GEN
+  builder2    claim_award      OK        9s  
      ok   claimed: round 4 proposal 7 (translation) — 1.300000 GEN
-  builder3    claim_award      OK        7s  
+  builder3    claim_award      OK        10s  
      ok   claimed: round 4 proposal 8 (workshops) — 0.100000 GEN
-  builder4    claim_award      OK        13s  
+  builder4    claim_award      OK        10s  
      ok   claimed: round 4 proposal 9 (debugger) — 0.100000 GEN
 
   waiting 320s for the appeal windows to close…
-  treasurer1  claim_remainder  ACCEPTED  10s  
+  treasurer1  claim_remainder  ACCEPTED  12s  
      FAIL remainder claimed: round 1 — 0.000000 GEN, round now undefined
      FAIL round 1 pool drained to exactly zero — 200000000000000000 wei still locked
-  treasurer2  claim_remainder  ACCEPTED  9s  
-     FAIL remainder claimed: round 2 — 0.000000 GEN, round now undefined
-     FAIL round 2 pool drained to exactly zero — 1 wei still locked
-  treasurer1  claim_remainder  ACCEPTED  10s  
+  treasurer2  claim_remainder  OK        11s  
+     ok   remainder claimed: round 2 — 0.000000 GEN, round now FINALIZED
+     ok   round 2 pool drained to exactly zero — 0 wei still locked
+  treasurer1  claim_remainder  ACCEPTED  12s  
      FAIL remainder claimed: round 4 — 0.000000 GEN, round now undefined
      FAIL round 4 pool drained to exactly zero — 800000000000000000 wei still locked
 
@@ -137,33 +137,10 @@
      ok   every stored evaluation re-derives from its own inputs — 8/8
 
   GrantConsumer — a DAO registry that only recognises what the judge funded
-     preview  proposal 2: would_register=true tier=STANDARD 5.40/7.00
-     ok   a funded grant registers — tier STANDARD, 2.000000 GEN
-     FAIL a rejected proposal is refused by the registry
-     FAIL register_grant REVERTS on a grant the judge will not vouch for — V	award_wei�757480314960629922content_hash�deaeda2d0ad0483dgrant_indexgrantee�0xB58Bc9f2aa81F1BB848D92816Ee363c38
-     registry 2 grant(s), 2.757480 GEN recognised
+     preview  proposal 3: would_register=true tier=PRIORITY 5.58/7.00
+     ok   a funded grant registers — tier PRIORITY, 0.595202 GEN
+     ok   a rejected proposal is refused by the registry — proposal #4 is rejected and was awarded nothing
+     ok   register_grant REVERTS on a grant the judge will not vouch for — GrantConsumer: proposal #4 is rejected and was awarded nothing
+     registry 1 grant(s), 0.595202 GEN recognised
 
-=== GrantJudge (canonical)  0x005Fa604257838Bc760Af30857719aBffce12238
-  funding   0 of 11 accounts topped up
-  stakes     spam 0.10 GEN · appeal 0.20 GEN
-  windows    appeal 86400s · stall 172800s
-
-  an OPEN round on the canonical instance
-  treasurer1  create_round     OK        30s  
-     ok   canonical open round created — id 1
-
-  a round that reaches RANKED with its 24-hour appeal window still open
-  treasurer2  create_round     OK        13s  
-  builder1    submit_proposal  OK        10s  
-  builder3    submit_proposal  OK        10s  
-
-  waiting 582s for the submission window…
-  trigger     evaluate         OK        20s  — Strongest on Team experience (6/7). weakest on Technical feasibility (4/7). The filing carries 44 figures, 5 timing markers, a costed budget, named track record, stated risks. Weighted total 4.90/7.00 with overall quality 7/7 and completeness 4/7, which clears the round's 4.00 threshold.
-     ok   canonical scored: indexer — → 4.90/7.00
-  trigger     evaluate         OK        20s  — Strongest on Technical feasibility (0/7). The filing carries named track record. Weighted total 0.20/7.00 with overall quality 0/7 and completeness 2/7, which does not clear the round's 4.00 threshold.
-     ok   canonical scored: explorer — → 0.20/7.00
-  trigger     finalize         OK        7s  
-     ok   canonical round ranked — 1 funded, appeal window closes at 1790142408
-     ok   the 24-hour appeal window is open on chain
-
-8 CHECK(S) FAILED — 44.3 minutes
+4 CHECK(S) FAILED — 34.2 minutes

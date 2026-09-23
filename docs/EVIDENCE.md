@@ -7,7 +7,7 @@ registry, and a fresh `verify_evaluation` for each scored proposal.
 It does not know or care what produced the state. Nothing in this
 file was typed in by hand, and nothing came out of a script's memory.
 
-- **Read at** `2026-09-22T05:50:34.192Z`
+- **Read at** `2026-09-23T10:36:53.658Z`
 - **Checks** 21/21 passed
 - **Network** GenLayer Studio Devnet, chain 61997
 
@@ -15,9 +15,9 @@ file was typed in by hand, and nothing came out of a script's memory.
 
 | contract | address | notes |
 |---|---|---|
-| `GrantJudge` | `0x005Fa604257838Bc760Af30857719aBffce12238` | appeal 86400s · stall 172800s · cooldown 3600s · rubric 1.0.0 |
-| `GrantJudgeDemo` | `0xaba5752CdB28DD354683B0FBBc1E47daD9AAB153` | appeal 300s · stall 240s · cooldown 0s · rubric 1.0.0 |
-| `GrantConsumer` | `0x96F8502d5018500399010FBD3e333d518752557E` | custody `false`, 0 payable methods, reads `0xaba5752C…` |
+| `GrantJudge` | `0xafC8966b867421D4bF77a3440da527dB70BD2059` | appeal 86400s · stall 172800s · cooldown 3600s · rubric 1.0.0 |
+| `GrantJudgeDemo` | `0xB32cA6B2a0e711C69391c3B5bdC9A610F395f212` | appeal 300s · stall 240s · cooldown 0s · rubric 1.0.0 |
+| `GrantConsumer` | `0x49E309363A14bD65F6B80Aa616D13024bAe899A7` | custody `false`, 0 payable methods, reads `0xB32cA6B2…` |
 
 ## Rounds
 
@@ -25,41 +25,38 @@ file was typed in by hand, and nothing came out of a script's memory.
 
 | # | name | outcome | pool | awarded | funded | qualified | rejected | skipped | appeals | locked |
 |---|---|---|---|---|---|---|---|---|---|---|
-| 1 | GenLayer Ecosystem Growth | **RANKED** | 5.00 | 5.10 | 3 | 0 | 1 | 0 | 2 | `200000000000000000` |
-| 2 | Developer Tooling | **RANKED** | 3.00 | 2.999999999999999999 | 2 | 0 | 0 | 0 | 0 | `1` |
+| 1 | GenLayer Ecosystem Growth | **FINALIZED** | 5.00 | 5.10 | 3 | 0 | 1 | 0 | 2 | `0` |
+| 2 | Developer Tooling | **FINALIZED** | 3.00 | 3.00 | 2 | 0 | 0 | 0 | 0 | `0` |
 | 3 | Security Audits | **CANCELLED** | 2.00 | 0.00 | 0 | 0 | 0 | 0 | 0 | `0` |
-| 4 | Docs and Translation | **RANKED** | 2.00 | 1.20 | 1 | 1 | 0 | 1 | 0 | `800000000000000000` |
+| 4 | Docs and Translation | **FINALIZED** | 2.00 | 1.20 | 1 | 1 | 0 | 1 | 0 | `0` |
 | 5 | Q4 Ecosystem Fund | **OPEN** | 4.00 | 0.00 | 0 | 0 | 0 | 0 | 0 | `4000000000000000000` |
 
-**`GrantJudge`** — the canonical instance — the brief exactly
-
-| # | name | outcome | pool | awarded | funded | qualified | rejected | skipped | appeals | locked |
-|---|---|---|---|---|---|---|---|---|---|---|
-| 1 | Core Protocol Research | **OPEN** | 6.00 | 0.00 | 0 | 0 | 0 | 0 | 0 | `6000000000000000000` |
-| 2 | Indexing and Data | **RANKED** | 3.00 | 2.00 | 1 | 0 | 1 | 0 | 0 | `3200000000000000000` |
+**3 round(s) drained to exactly zero wei** once every claim had landed. That is rule 7 asserted per round rather
+than in aggregate — an aggregate-only invariant is satisfiable by
+a contract that has quietly moved one round's pool into another's.
 
 ### Round 1 — the ranking as the contract computed it
 
 | rank | proposal | author | status | score | requested | awarded | appeal |
 |---|---|---|---|---|---|---|---|
-| 1 | #2 | `0x39a2C45D…` | FUNDED | 5.40 | 2.0000 | **2.0000** | — |
-| 2 | #3 | `0xB58Bc9f2…` | FUNDED | 5.28 | 1.5000 | **0.7574** | WON |
-| 3 | #1 | `0x230AA440…` | FUNDED | 4.76 | 3.0000 | **2.3425** | — |
+| 1 | #3 | `0xB58Bc9f2…` | FUNDED | 5.58 | 1.5000 | **0.5952** | WON |
+| 2 | #1 | `0x230AA440…` | FUNDED | 5.22 | 3.0000 | **2.5047** | — |
+| 3 | #2 | `0x39a2C45D…` | FUNDED | 5.20 | 2.0000 | **2.0000** | — |
 | 4 | #4 | `0x43862f07…` | REJECTED | 0.20 | 1.0000 | **0.0000** | LOST |
 
 ### Round 2 — the ranking as the contract computed it
 
 | rank | proposal | author | status | score | requested | awarded | appeal |
 |---|---|---|---|---|---|---|---|
-| 1 | #5 | `0xf99b8Bdf…` | FUNDED | 4.66 | 2.0000 | **1.5295** | — |
-| 2 | #6 | `0x230AA440…` | FUNDED | 4.48 | 2.0000 | **1.4704** | — |
+| 1 | #5 | `0xf99b8Bdf…` | FUNDED | 4.38 | 2.0000 | **1.5000** | — |
+| 2 | #6 | `0x230AA440…` | FUNDED | 4.38 | 2.0000 | **1.5000** | — |
 
 ### Round 4 — the ranking as the contract computed it
 
 | rank | proposal | author | status | score | requested | awarded | appeal |
 |---|---|---|---|---|---|---|---|
-| 1 | #7 | `0x39a2C45D…` | FUNDED | 4.38 | 1.2000 | **1.2000** | — |
-| 2 | #9 | `0x43862f07…` | QUALIFIED | 4.16 | 1.5000 | **0.0000** | — |
+| 1 | #7 | `0x39a2C45D…` | FUNDED | 4.66 | 1.2000 | **1.2000** | — |
+| 2 | #9 | `0x43862f07…` | QUALIFIED | 4.38 | 1.5000 | **0.0000** | — |
 
 Skipped: #8 — the network could not score them and a stranger settled them, returning each deposit in full.
 
@@ -76,13 +73,13 @@ rejected            1
 skipped             1
 refusals            0
 
-balance             5.0000 GEN
-  locked            5.0000 GEN
+balance             4.0000 GEN
+  locked            4.0000 GEN
   payable           0.0000 GEN
 ledger_balanced     True
 identity            balance_wei == locked_wei + payable_wei
 chain balance       17300000000000000000
-undelivered_wei     12299999999999999999
+undelivered_wei     13300000000000000000
 ```
 
 `undelivered_wei` is the gap between the contract's own accounting and
@@ -93,39 +90,39 @@ reported rather than hidden. On a network that delivers, this is zero.
 
 ## Composability
 
-`GrantConsumer` at `0x96F8502d5018500399010FBD3e333d518752557E` holds 2 grant(s) worth 2.7574 GEN. It registered what the judge funded and **reverted** on what the judge would not vouch for.
+`GrantConsumer` at `0x49E309363A14bD65F6B80Aa616D13024bAe899A7` holds 1 grant(s) worth 0.5952 GEN. It registered what the judge funded and **reverted** on what the judge would not vouch for.
 
 ## The canonical instance
 
-`0x005Fa604257838Bc760Af30857719aBffce12238` runs the brief exactly — a 24-hour appeal window, a 48-hour stall window, one round per wallet per hour.
+`0xafC8966b867421D4bF77a3440da527dB70BD2059` runs the brief exactly — a 24-hour appeal window, a 48-hour stall window, one round per wallet per hour.
 It is the same source as the demo instance, byte for byte; only the
 clocks differ, which is why the whole lifecycle is demonstrated on
 the other one.
 
-On it: round 1 is open for proposals; round 2 has been ranked, with its full 24-hour appeal window running.
+It currently holds no rounds.
 
 ## Every check, in the order the run made it
 
-- ok FUNDED — a proposal won and was awarded — #1 2.3425 GEN, #2 2.0000 GEN, #3 0.7574 GEN, #5 1.5295 GEN, #6 1.4704 GEN, #7 1.2000 GEN
+- ok FUNDED — a proposal won and was awarded — #1 2.5047 GEN, #2 2.0000 GEN, #3 0.5952 GEN, #5 1.5000 GEN, #6 1.5000 GEN, #7 1.2000 GEN
 - ok QUALIFIED — above the bar, out of seats, deposit returned — #9
 - ok REJECTED — below the bar, deposit forfeited to the pool — #4 0.20
 - ok SKIPPED — the network could not score it, deposit returned in full — #8
-- ok CONTESTED → WON — re-scored on new evidence and funded — #3 0.54 → 5.28
+- ok CONTESTED → WON — re-scored on new evidence and funded — #3 0.44 → 5.58
 - ok CONTESTED → LOST — re-scored and still below the bar — #4 0.20 → 0.20
 - ok CANCELLED — a treasurer closed an empty round and took the pool back — #3 2.00 GEN
-- ok PARTIALLY FUNDED — round 2 split in proportion to the scores — 466:448 → 1.5295:1.4704 GEN
-- ok round 1: awards + remainder = pool, exactly — 5.1000 + -0.1000 = 5.0000 GEN
-- ok round 1: everything still locked is somebody's to claim — 0.2000 locked = 0.0000 unclaimed by proposers + 0.2000 remainder
-- ok round 2: awards + remainder = pool, exactly — 2.9999 + 0.0000 = 3.0000 GEN
+- ok PARTIALLY FUNDED — round 2 split in proportion to the scores — 438:438 → 1.5000:1.5000 GEN
+- ok round 1: everything still locked is somebody's to claim — 0.0000 locked = 0.0000 unclaimed by proposers + 0.0000 remainder
+- ok DRAINED — round 1 reached exactly zero — 0 wei
 - ok round 2: everything still locked is somebody's to claim — 0.0000 locked = 0.0000 unclaimed by proposers + 0.0000 remainder
-- ok round 4: awards + remainder = pool, exactly — 1.2000 + 0.8000 = 2.0000 GEN
-- ok round 4: everything still locked is somebody's to claim — 0.8000 locked = 0.0000 unclaimed by proposers + 0.8000 remainder
+- ok DRAINED — round 2 reached exactly zero — 0 wei
+- ok round 4: everything still locked is somebody's to claim — 0.0000 locked = 0.0000 unclaimed by proposers + 0.0000 remainder
+- ok DRAINED — round 4 reached exactly zero — 0 wei
 - ok the ledger identity holds on chain — balance_wei == locked_wei + payable_wei
-- ok balance = locked + payable, recomputed here from the published figures — 5.0000 = 5.0000 + 0.0000 GEN
+- ok balance = locked + payable, recomputed here from the published figures — 4.0000 = 4.0000 + 0.0000 GEN
 - ok every stored evaluation re-derives from its own inputs — 8/8
 - ok evaluations settled — 8 of 8 attempts (0 inconclusive)
 - ok GrantConsumer holds nothing — custody false, 0 payable methods
-- ok the consumer would admit a grant the judge funded — #1 tier STANDARD at 4.76
+- ok the consumer would admit a grant the judge funded — #1 tier STANDARD at 5.22
 - ok the consumer refuses a proposal the judge rejected — proposal #4 is rejected and was awarded nothing
 
 ---
