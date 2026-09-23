@@ -89,6 +89,9 @@ CREATED ──▶ OPEN ──▶ EVALUATING ──▶ RANKED ──▶ FINALIZED
    for a `0.2 GEN` stake, inside the appeal window.
 6. **`claim_award` / `claim_remainder` / `claim_payout`** — pull payments.
    After the last one, the round's locked balance is **exactly zero**.
+   `claim_remainder_fallback` is the same remainder claim with the transfer
+   left to `claim_payout`, for networks where the one-transaction form cannot
+   be fee-estimated — see [below](#and-one-thing-the-estimator-gets-wrong).
 
 ---
 
@@ -250,6 +253,7 @@ every one is asserted as syntax by `tools/audit.py` and by `test/test_logic.py`.
 | `cancel_round(round_id)` | the treasurer | Closes an empty round and returns the pool. Refuses once anyone has filed. |
 | `claim_award(round_id, proposal_id)` | the author | Pays the award, the returned deposit and a returned appeal stake in one transfer. |
 | `claim_remainder(round_id)` | the treasurer | Pays what the ranking did not allocate, after the appeal window. Moves the round to FINALIZED. |
+| `claim_remainder_fallback(round_id)` | the treasurer | The same claim, the same gate, the same books — but it posts no transfer, crediting the remainder for `claim_payout` to sweep. Two fee-estimable transactions in place of one that is not. |
 | `settle_stalled(round_id, proposal_id)` | anyone | Marks a proposal the network could not score as SKIPPED and returns its deposit. **Works while paused.** |
 | `claim_payout()` | anyone | Sweeps refunds, a cancelled pool and returned stakes. |
 | `set_paused(paused)` | the owner | Stops *new* rounds and *new* proposals. Nothing else. |
@@ -308,7 +312,7 @@ refund it from. Both halves of that argument are the same argument.
 contracts/GrantJudge.py      the contract — every rule documented where it lives
 contracts/GrantConsumer.py   the composability example, custody: false
 contracts/NOTES.md           design notes and the hazards that shaped them
-test/test_logic.py           673 offline tests — no chain, no network, no model
+test/test_logic.py           682 offline tests — no chain, no network, no model
 test/harness.mjs             shared integration helpers
 test/deploy.mjs              deploys both instances and the consumer
 test/seed.mjs                drives the whole lifecycle on chain and asserts it
@@ -317,6 +321,7 @@ test/verify_onchain.mjs      reads the deployed source back and diffs it against
 test/topup.mjs               repairs a run that lost a write to the network
 test/settle.mjs              drives one round to completion from wherever it is
 test/appeal.mjs              files an appeal, as the author, from a fixture's evidence
+test/remainder_fallback.mjs  proves the treasurer can get the remainder out, on chain
 test/cleanup.mjs             cancels an empty round left by an interrupted run
 test/fixtures/proposals.json the seeded proposal texts
 tools/audit.py               the cross-file audit and the rejection ledger
@@ -388,6 +393,17 @@ what it finds. That is the honest shape for an evidence document: the chain is
 the record, and this is a reader of it. An evidence document whose numbers were
 copied by a person keeps looking healthy after the contract stops agreeing with
 it.
+
+> **The evidence document describes the previous deployment**, at the addresses
+> named in its own table — `0x005Fa604…` and `0xaba5752C…`. Adding
+> `claim_remainder_fallback` changed the contract bytes, and a GenLayer contract
+> is not upgradeable in place, so the redeploy that carried the fix also moved
+> every address. The addresses in `deployments.json` are the new ones. Nothing
+> in EVIDENCE.md is retracted — it is a true record of a real run, read off the
+> chain, and those rounds are still there to read — but it predates the fix and
+> is not regenerated, because regenerating it against an empty deployment would
+> replace a record of what happened with a record of nothing having happened
+> yet. `node test/seed.mjs` is what produces a new one.
 
 ---
 
@@ -466,12 +482,35 @@ window. It refuses in simulation, the estimator budgets nothing for a message
 the real execution does post, and the transaction reverts with
 `out_of message_fee total`.
 
-The money is not lost: it stays locked against its round, `get_round` publishes
-it, and `docs/EVIDENCE.md` carries the passing check *"everything still locked is
-somebody's to claim"*. The measurement, the exact correlation and the five
-different errors that hand-budgeting produced are in
-[`docs/PROBE.md` §4b](docs/PROBE.md), and `tools/audit.py` now flags the
-clock-plus-transfer combination so the next contract meets it at build time.
+The money was never lost — it stays locked against its round and `get_round`
+publishes it — but *"you can still see it"* is not the same as *"you can still
+have it"*, and a treasurer who cannot withdraw their own remainder is a
+treasurer with trapped value. So the contract now carries a second door.
+
+**`claim_remainder_fallback(round_id)`** breaks the combination instead of
+trying to out-budget it. A contract cannot choose its own fee allocation — that
+is carried by the transaction, and hand-supplying one was measured to fail
+structurally, at 1× through 5000× the estimate alike. What a contract *can* do
+is not post the transfer. The fallback reads the clock, applies the identical
+gate and books the remainder to the treasurer's claimable balance; then
+`claim_payout()`, which reads no clock, posts the transfer and estimates
+correctly. Two transactions, each of them fee-estimable, in place of one that is
+not.
+
+It is deliberately **not** a second way to be paid. Both paths run through the
+same `_remainder_gate` and the same `_book_remainder`, so the round reaches
+FINALIZED exactly once and the remainder is credited exactly once whichever door
+is used — asserted in the offline suite by driving the pool to zero through the
+fallback and by taking each door after the other and requiring the second
+refused.
+
+The measurement, the exact correlation and the five different errors that
+hand-budgeting produced are in [`docs/PROBE.md` §4b](docs/PROBE.md).
+`tools/audit.py` flags the clock-plus-transfer combination so the next contract
+meets it at build time — and it now resolves that combination **through the call
+graph** rather than off the method's own bytes, because the first version of
+this fix moved the clock read into a helper and silently switched the warning
+off.
 
 ---
 

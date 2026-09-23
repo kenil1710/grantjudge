@@ -22,7 +22,7 @@ import { ProposalPanel } from "@/components/ProposalPanel";
 import { TxButton } from "@/components/TxButton";
 import { EmptyState, ErrorState, SkeletonCard, SkeletonGrid } from "@/components/States";
 import { useProposals, useRankings, useRound } from "@/lib/hooks";
-import { cancelRound, claimRemainder, finalize } from "@/lib/contract";
+import { cancelRound, claimRemainderFallback, finalize } from "@/lib/contract";
 import { useWallet } from "@/components/WalletProvider";
 import { formatGen, formatTime, sameAddress, scoreText, shortAddress } from "@/lib/format";
 
@@ -248,12 +248,26 @@ export default function RoundPage({ params }: { params: Promise<{ id: string }> 
             />
           )}
           {canClaimRemainder && (
-            <TxButton
-              label={`Claim ${formatGen(round.remainder_wei)} GEN remainder`}
-              icon={<HandCoins size={16} />}
-              send={(account) => claimRemainder(account, round.round_id)}
-              onDone={reload}
-            />
+            <>
+              {/* TWO TRANSACTIONS, DELIBERATELY. `claim_remainder` cannot be
+                  fee-estimated on Studio Dev (docs/PROBE.md §4b), so this books
+                  the remainder to the treasurer's claimable balance and the
+                  sweep on /my-proposals posts the transfer. Both steps estimate
+                  correctly; the one-call form does not. */}
+              <TxButton
+                label={`Claim ${formatGen(round.remainder_wei)} GEN remainder`}
+                icon={<HandCoins size={16} />}
+                title="Credits the remainder to your balance; sweep it from My proposals."
+                send={(account) => claimRemainderFallback(account, round.round_id)}
+                onDone={reload}
+              />
+              <span style={{ fontSize: "0.8rem", color: "var(--muted)", alignSelf: "center", maxWidth: 420, lineHeight: 1.5 }}>
+                This credits the remainder to your balance. Withdraw it from{" "}
+                <Link href="/my-proposals">My proposals</Link> — two
+                transactions, because the one-call form cannot be fee-estimated
+                on this network.
+              </span>
+            </>
           )}
           {round.status === "RANKED" && round.contest_open && isTreasurer && (
             <span style={{ fontSize: "0.8rem", color: "var(--muted)", alignSelf: "center", maxWidth: 420, lineHeight: 1.5 }}>

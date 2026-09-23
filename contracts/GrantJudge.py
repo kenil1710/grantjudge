@@ -46,10 +46,16 @@ import typing
 #      field the validators did not compare is a field the leader can forge,
 #      and a forged score is a grant awarded to whoever runs the leader. So the
 #      compared axis is the WHOLE SCORE VECTOR: every criterion score, the
-#      quality bucket, the completeness bucket, the derived weighted total, the
-#      band, the qualification flag, the hash of the text each node read and
-#      the content hash over all of it. The corollary is enforced in the other
-#      direction too: this contract STORES NOTHING IT DID NOT COMPARE.
+#      quality bucket, the completeness count, the qualification flag, the
+#      coverage, bracket and signal vectors, the depth, and the hash of the
+#      text each node read - with the weighted total's DRIFT bounded beside
+#      them. The two fields DERIVED from that vector - the band and the content
+#      hash - are not compared a second time in `_agrees`; `evaluate`
+#      recomputes them from the agreed vector (rule 11) and `_coherent` checks
+#      the leader's own copies against the leader's own vector, which is what
+#      makes them unforgeable. The corollary is enforced in the other direction
+#      too: this contract STORES NOTHING THAT WAS NOT EITHER COMPARED OR
+#      RE-DERIVED FROM WHAT WAS.
 #
 #   2. NO PUBLIC WRITE EVER RAISES. There is not one `raise` statement in this
 #      file. A revert rolls back storage but NOT the value that came with the
@@ -82,9 +88,10 @@ import typing
 #      anybody who already has an award.
 #
 #   6. THE OWNER CANNOT FREEZE USER MONEY. `evaluate`, `finalize`, `contest`,
-#      `claim_award`, `claim_remainder`, `claim_payout`, `cancel_round` and
-#      `settle_stalled` are ALL ungated on `paused`. Pause stops NEW rounds and
-#      NEW proposals and does nothing else. An owner who could strand a pool
+#      `claim_award`, `claim_remainder`, `claim_remainder_fallback`,
+#      `claim_payout`, `cancel_round` and `settle_stalled` are ALL ungated on
+#      `paused`. Pause stops NEW rounds and NEW proposals and does nothing
+#      else. An owner who could strand a pool
 #      could extort a treasurer, which is worse than forging a score because it
 #      needs no validators at all. In particular `settle_stalled` works while
 #      paused, by design and by test.
@@ -120,12 +127,31 @@ import typing
 #
 #  10. THE COMPARISON IS TIGHT WHERE MONEY MOVES AND ONLY THERE. Two honest
 #      readers of the same proposal may differ by a bucket; that is what it
-#      means for a judgement to be a judgement. So each dimension is compared
-#      with a tolerance of exactly one bucket - and every CONSEQUENCE of the
-#      vector is compared EXACTLY: the band, the qualification flag, the
-#      completeness count and the drift of the weighted total. A leader may
-#      shade a score by a bucket. A leader may not change an outcome. See
-#      `_agrees` and NOTES.md.
+#      means for a judgement to be a judgement. So each JUDGEMENT dimension -
+#      every criterion score, and the quality bucket - is compared with a
+#      tolerance of exactly one bucket, and the weighted total is not compared
+#      for equality at all: its DRIFT is bounded by MAX_TOTAL_DRIFT.
+#
+#      Compared EXACTLY are the qualification flag - the one consequence the
+#      money actually turns on - and, beside it, every DETERMINISTIC field: the
+#      completeness count, the coverage, bracket and signal vectors, the depth,
+#      and the hash of the text each node read. Two nodes that differ on any of
+#      those differ about arithmetic rather than about judgement.
+#
+#      THE BAND IS NOT ON THIS AXIS, and that is deliberate. It was once, and
+#      it made settlement depend on where a total happened to fall relative to
+#      a round number: two readings of 499 and 501 differ by two points and
+#      would have been refused, while 401 and 499 differ by ninety-eight and
+#      would have been accepted. That is a rule about arithmetic coincidence,
+#      not about disagreement. The band is a pure function of a total whose
+#      drift IS bounded, and `_coherent` still checks the leader's band against
+#      the leader's own vector - so a FORGED band remains impossible; only an
+#      ACCIDENTAL one no longer burns a round. The content hash is derived and
+#      checked in the same place, for the same reason.
+#
+#      A leader may shade a score by a bucket. A leader may not change an
+#      outcome. See `_agrees`, which says all of this again at the point where
+#      it is enforced, and NOTES.md.
 #
 #  11. NOTHING THE LEADER SENDS IS STORED WITHOUT BEING RECOMPUTED. After
 #      consensus returns, `evaluate` re-derives the whole record from the
@@ -2258,6 +2284,68 @@ class GrantJudge(gl.contract.Contract):
             return True
         return now > 0 and now - int(rnd.deadline) >= ttl
 
+    def _remainder_gate(self, round_id: typing.Any) -> tuple:
+        """EVERYTHING THAT MUST BE TRUE BEFORE A REMAINDER MAY BE TAKEN, in one
+        place. Returns (round, error_or_empty, extra_or_None).
+
+        Shared by `claim_remainder` and `claim_remainder_fallback` so that the
+        two cannot come apart. A second copy of this gate would be a second
+        place for the appeal window to be got wrong, and the whole point of the
+        fallback is that it differs from the ordinary path in EXACTLY ONE
+        respect - whether it posts the transfer itself - and in no other. Same
+        caller check, same cancellation check, same status check, same window.
+
+        It reads the block clock, which is why the method that calls it and then
+        pays cannot be fee-estimated on Studio Dev. See `claim_remainder_fallback`."""
+        rnd = self._round(round_id)
+        if rnd is None:
+            return None, "no round with id " + str(_as_int(round_id, 0)), None
+        rid = int(rnd.round_id)
+        if gl.message.sender_address != rnd.treasurer:
+            return None, ("only the treasurer of round #" + str(rid)
+                          + " can claim its remainder"), None
+        now = self._now()
+        if now <= 0:
+            return None, ("the block time was unreadable; nothing was changed "
+                          "and this call can be retried"), None
+        if str(rnd.status) == R_CANCELLED:
+            return None, ("round #" + str(rid) + " was cancelled and its pool "
+                          "was returned in full at that point"), None
+        if str(rnd.status) != R_RANKED:
+            if bool(rnd.remainder_claimed):
+                return None, ("the remainder of round #" + str(rid)
+                              + " has already been claimed"), None
+            return None, ("round #" + str(rid) + " is " + str(rnd.status).lower()
+                          + " and has not been ranked yet"), None
+        ends = self._contest_ends(rnd)
+        if now <= ends:
+            return None, ("the appeal window for round #" + str(rid)
+                          + " is still open for " + str(ends - now) + "s; a "
+                          "successful appeal is paid out of this remainder"), \
+                {"closes_at": ends}
+        return rnd, "", None
+
+    def _book_remainder(self, rnd: Round) -> int:
+        """Move a ranked round's remainder into the treasurer's CLAIMABLE
+        BALANCE and close the round. Returns what was booked.
+
+        IT POSTS NO TRANSFER. Both public remainder paths call this and then
+        differ only in whether they follow it with `_settle_payout` - which is
+        the whole difference between taking the remainder in one transaction and
+        taking it in two, and nothing else. The books, the status transition and
+        the round's locked slice are identical either way, so rule 7 cannot come
+        apart depending on which door the treasurer used."""
+        owed = int(rnd.remainder_wei)
+        rnd.remainder_claimed = True
+        rnd.remainder_wei = u256(0)
+        old = str(rnd.status)
+        rnd.status = R_FINALIZED
+        self._bump_round(old, R_FINALIZED)
+        if owed > 0:
+            self._hand_over(rnd, rnd.treasurer, owed)
+            self.total_refunded_wei = u256(int(self.total_refunded_wei) + owed)
+        return owed
+
     # --- writes ------------------------------------------------------------
 
     @gl.public.write.payable
@@ -3326,48 +3414,21 @@ class GrantJudge(gl.contract.Contract):
         zero once every proposal has claimed - which is the property the offline
         suite drives every lifecycle to the end to assert.
 
+        IF THIS CALL CANNOT BE FEE-ESTIMATED ON YOUR NETWORK, USE
+        `claim_remainder_fallback` - it books the same remainder to the same
+        wallet and leaves `claim_payout()` to post the transfer. The remainder
+        is reachable either way; see that method for why a second door exists.
+
         Not gated on `paused` (rule 6)."""
         self._bank()
-        now = self._now()
         sender = gl.message.sender_address
 
-        rnd = self._round(round_id)
-        if rnd is None:
-            return self._refuse("no round with id " + str(_as_int(round_id, 0)))
+        rnd, error, extra = self._remainder_gate(round_id)
+        if error:
+            return self._refuse(error, extra)
         rid = int(rnd.round_id)
 
-        if sender != rnd.treasurer:
-            return self._refuse("only the treasurer of round #" + str(rid)
-                                + " can claim its remainder")
-        if now <= 0:
-            return self._refuse("the block time was unreadable; nothing was "
-                                "changed and this call can be retried")
-        if str(rnd.status) == R_CANCELLED:
-            return self._refuse("round #" + str(rid) + " was cancelled and its "
-                                "pool was returned in full at that point")
-        if str(rnd.status) != R_RANKED:
-            if bool(rnd.remainder_claimed):
-                return self._refuse("the remainder of round #" + str(rid)
-                                    + " has already been claimed")
-            return self._refuse("round #" + str(rid) + " is "
-                                + str(rnd.status).lower()
-                                + " and has not been ranked yet")
-        ends = self._contest_ends(rnd)
-        if now <= ends:
-            return self._refuse(
-                "the appeal window for round #" + str(rid) + " is still open "
-                "for " + str(ends - now) + "s; a successful appeal is paid out "
-                "of this remainder", {"closes_at": ends})
-
-        owed = int(rnd.remainder_wei)
-        rnd.remainder_claimed = True
-        rnd.remainder_wei = u256(0)
-        old = str(rnd.status)
-        rnd.status = R_FINALIZED
-        self._bump_round(old, R_FINALIZED)
-        if owed > 0:
-            self._hand_over(rnd, rnd.treasurer, owed)
-            self.total_refunded_wei = u256(int(self.total_refunded_wei) + owed)
+        owed = self._book_remainder(rnd)
         paid = self._settle_payout(sender)
 
         return {
@@ -3385,12 +3446,74 @@ class GrantJudge(gl.contract.Contract):
         }
 
     @gl.public.write
+    def claim_remainder_fallback(self, round_id: typing.Any) -> typing.Any:
+        """THE SAME CLAIM, WITHOUT THE TRANSFER. Treasurer only.
+
+        WHY THIS EXISTS, precisely. `claim_remainder` is the only write in this
+        contract that both READS THE BLOCK CLOCK and POSTS A VALUE TRANSFER, and
+        on Studio Dev that combination cannot be fee-estimated. The fee
+        simulator there runs on a clock roughly 664 days stale, so the
+        simulation lands on the wrong side of this round's own appeal window,
+        takes the refusal branch, emits no message, and the estimator therefore
+        budgets nothing for a transfer the real execution does post. The real
+        transaction then reverts with `out_of message_fee total`. Measured, four
+        times, with the simulator's own output read back; docs/PROBE.md 4b.
+
+        A CONTRACT CANNOT FIX THAT BY BUDGETING. The fee allocation is carried
+        by the transaction, not chosen by the code inside it, and hand-supplying
+        one was measured to fail structurally - `AllocationLifecycleBudgetInsufficient`
+        at one, ten, fifty, a hundred, a thousand and five thousand times the
+        estimate. Magnitude is not the problem.
+
+        SO THIS METHOD BREAKS THE COMBINATION INSTEAD. It reads the clock and
+        posts NOTHING: the remainder is credited to the treasurer's claimable
+        balance and left there. `claim_payout()` - which does not read the clock
+        - then posts the transfer, and its estimate is correct because nothing
+        about it depends on what time the simulator thinks it is. Two
+        transactions, each of them fee-estimable, in place of one that is not.
+
+        THIS IS NOT A SECOND WAY TO GET PAID. It is the same gate, the same
+        arithmetic and the same books - `_remainder_gate` and `_book_remainder`
+        are shared with `claim_remainder` line for line - stopping one step
+        earlier. Whichever door is used, the round reaches FINALIZED exactly
+        once, the remainder is credited exactly once, and rule 7 holds
+        identically: value that entered this contract can be got back out.
+
+        Not gated on `paused` (rule 6)."""
+        self._bank()
+
+        rnd, error, extra = self._remainder_gate(round_id)
+        if error:
+            return self._refuse(error, extra)
+        rid = int(rnd.round_id)
+
+        owed = self._book_remainder(rnd)
+
+        return {
+            "status": "OK",
+            "round_id": rid,
+            "remainder_wei": str(owed),
+            "remainder_gen": _gen(owed),
+            "paid_wei": "0",
+            "credited_wei": str(owed),
+            "claim_with": "claim_payout()",
+            "round_status": R_FINALIZED,
+            "round_locked_wei": str(int(rnd.locked_wei)),
+            "unclaimed_by_proposers_wei": str(int(rnd.locked_wei)),
+            "note": ("the remainder is now this wallet's to sweep and no "
+                     "longer the round's; nothing was transferred by this "
+                     "call, which is the entire point of it - call "
+                     "claim_payout() to take it"),
+        }
+
+    @gl.public.write
     def claim_payout(self) -> typing.Any:
         """Sweep everything this wallet is owed that is not tied to a proposal.
 
         Refunds from a refused call, a cancelled round's pool, a returned appeal
-        stake from an evaluation the network could not complete, and anything
-        `claim_award` or `claim_remainder` credited but did not manage to send.
+        stake from an evaluation the network could not complete, a remainder
+        booked by `claim_remainder_fallback`, and anything `claim_award` or
+        `claim_remainder` credited but did not manage to send.
 
         Not gated on `paused` (rule 6). It is the second most important method
         to leave open, after `settle_stalled`: an owner who could stop wallets
@@ -3414,7 +3537,8 @@ class GrantJudge(gl.contract.Contract):
         """Stop NEW rounds and NEW proposals. That is the whole of the power
         this contract grants its owner, and the list of what it does NOT stop is
         the point: evaluate, finalize, contest, settle_stalled, cancel_round,
-        claim_award, claim_remainder and claim_payout all keep working (rule 6).
+        claim_award, claim_remainder, claim_remainder_fallback and claim_payout
+        all keep working (rule 6).
 
         There is no method here that touches a pool, a score, a stake or an
         award, and there is no withdraw method at all."""
@@ -3869,9 +3993,10 @@ class GrantJudge(gl.contract.Contract):
     @gl.public.view
     def payout_of(self, address: str) -> typing.Any:
         """What this wallet can sweep with `claim_payout` - refunds from
-        refused calls, a cancelled pool, a returned appeal stake. NOT the same
-        as an unclaimed award, which is still locked against its round until
-        `claim_award` releases it."""
+        refused calls, a cancelled pool, a returned appeal stake, a remainder
+        booked by `claim_remainder_fallback`. NOT the same as an unclaimed
+        award, which is still locked against its round until `claim_award`
+        releases it."""
         if not _is_addr(address):
             return {"found": False, "reason": "not a 20-byte hex address"}
         who = Address(str(address).strip())

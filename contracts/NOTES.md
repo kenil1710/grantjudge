@@ -83,34 +83,43 @@ forged band is still impossible — and left out of `_agrees`, where only an
 accidental one was ever being caught. The weighted total's drift is bounded
 separately and the band is a pure function of it.
 
-### Erratum in the deployed header, and why it is still there
+### Erratum in the header, and the deployment that closed it
 
-Rule 10 in `GrantJudge.py`'s own header says:
+**Closed.** Rules 1 and 10 in `GrantJudge.py`'s own header used to say that the
+band was on the compared axis:
 
 > every CONSEQUENCE of the vector is compared EXACTLY: **the band**, the
 > qualification flag, the completeness count and the drift of the weighted
 > total.
 
-That sentence was written before the band was taken off `_agrees`, and it is now
-imprecise in a way worth stating rather than quietly leaving for a reader to
-reconcile:
+That sentence was written before the band was taken off `_agrees`, and it
+described a contract that no longer existed. Three things were wrong with it:
 
+- **The band is NOT part of `_agrees`,** so two validators are not required to
+  land in the same band. `_agrees`'s own docstring said so, at length, three
+  hundred lines further down the same file — which is the worst place for a
+  correction to live, because nobody reading the rules reads that far.
 - **The band IS still compared exactly — in `_coherent`,** which every validator
   runs on the leader's payload before it votes. No leader can store a band that
-  does not derive from its own vector. That part is true.
-- **The band is NOT part of `_agrees`,** so two validators are not required to
-  land in the same band. `_agrees`'s own docstring says so, at length, three
-  hundred lines further down the same file.
-- "the drift of the weighted total is compared exactly" is loose phrasing
-  either way: a drift is compared against a bound, not for equality.
+  does not derive from its own vector. That part was true, and the header did
+  not say where it was true.
+- "the drift of the weighted total is compared exactly" was loose either way: a
+  drift is checked against a bound, not for equality.
 
-The header is not being edited, and the reason is a property worth more than the
-sentence: **the bytes in this repository are the bytes on chain.**
-`deployments.json` records the sha256 of the deployed source and
+Rule 1 carried the same claim about the band and about the content hash, and has
+been corrected with it. Both now say what the code does: the compared axis is
+the judgement vector with the deterministic fields exact beside it, and the two
+**derived** fields — the band and the content hash — are re-derived by
+`evaluate` and checked against the leader's own vector by `_coherent` rather
+than compared a second time in `_agrees`.
+
+**Why it stood for as long as it did**, because the reason is a property worth
+more than the sentence was: **the bytes in this repository are the bytes on
+chain.** `deployments.json` records the sha256 of the deployed source and
 `tools/audit.py` recomputes it, so a one-word comment fix fails the audit until
-the contract is redeployed — which would throw away every seeded round the
-evidence document describes. The wording is corrected in the next deployment;
-until then this note is the correction.
+the contract is redeployed. That is the correct trade and it was not worked
+around — the note stood as the correction until there was a deployment to carry
+the real one, and this is that deployment.
 
 ### Where 70 comes from
 

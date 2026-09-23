@@ -239,7 +239,8 @@ def main() -> int:
 
     section("7 · the owner cannot freeze user money")
     must_be_open = ("evaluate", "finalize", "contest", "settle_stalled",
-                    "claim_award", "claim_remainder", "claim_payout",
+                    "claim_award", "claim_remainder",
+                    "claim_remainder_fallback", "claim_payout",
                     "cancel_round")
     gated = set()
     for m in writes:
@@ -532,14 +533,68 @@ def main() -> int:
     # must pay). The check exists so the next contract meets it at build time
     # rather than as a reverted transaction, and so the count cannot grow
     # unnoticed.
+    #
+    # RESOLVED THROUGH THE CALL GRAPH, not off the method's own bytes. A write
+    # that reads the clock inside a private helper still reads the clock, and an
+    # earlier version of this check looked only at the method body — so pulling
+    # the gate out of `claim_remainder` into `_remainder_gate` silently emptied
+    # the list and the warning surface went quiet without anything being fixed.
+    # A check a refactor can switch off is not a check.
+    #
+    # Walked as CALL NODES rather than grepped, because these very docstrings
+    # name `_settle_payout` in order to explain which path posts a transfer and
+    # which does not, and a substring match reads that prose as a call.
+    helper_defs = {m.name: m for m in judge_methods if m.name.startswith("_")}
+
+    def self_calls(node: ast.AST) -> set:
+        found = set()
+        for sub in ast.walk(node):
+            if isinstance(sub, ast.Call) and isinstance(sub.func, ast.Attribute) \
+                    and isinstance(sub.func.value, ast.Name) \
+                    and sub.func.value.id == "self":
+                found.add(sub.func.attr)
+        return found
+
+    def reachable(method: ast.FunctionDef) -> set:
+        """Every method this one can reach, itself included."""
+        seen = {method.name}
+        queue = list(self_calls(method))
+        while queue:
+            name = queue.pop()
+            if name in seen:
+                continue
+            seen.add(name)
+            if name in helper_defs:
+                queue.extend(self_calls(helper_defs[name]))
+        return seen
+
     clocked_payers = []
     for m in writes:
-        body = ast.unparse(m)
-        if "self._now()" in body and "_settle_payout" in body:
+        reach = reachable(m)
+        if "_now" in reach and "_settle_payout" in reach:
             clocked_payers.append(m.name)
     check(sorted(clocked_payers) == ["claim_remainder"],
           "exactly one write both reads the block clock and posts a transfer "
           f"{sorted(clocked_payers)} — see docs/PROBE.md §4b")
+    # And the escape hatch for that one method exists, applies the same gate,
+    # and posts nothing — which is the whole reason it can be fee-estimated.
+    fallback = next((m for m in writes
+                     if m.name == "claim_remainder_fallback"), None)
+    check(fallback is not None, "claim_remainder_fallback exists")
+    if fallback is not None:
+        ordinary = next(m for m in writes if m.name == "claim_remainder")
+        reach = reachable(fallback)
+        check("_now" in reach,
+              "claim_remainder_fallback applies the same time gate")
+        check("_settle_payout" not in reach,
+              "claim_remainder_fallback posts no transfer of its own")
+        for shared in ("_remainder_gate", "_book_remainder"):
+            check(shared in self_calls(fallback) and shared in self_calls(ordinary),
+                  f"both remainder paths go through {shared}")
+        # The two must not drift apart: whatever the gate refuses for one it
+        # refuses for the other, because it is literally the same gate.
+        check(self_calls(fallback) <= self_calls(ordinary) | {"_refuse", "_bank"},
+              "the fallback reaches nothing the ordinary path does not")
     check("stale clock" in read("docs/PROBE.md"),
           "PROBE.md records why that combination cannot be fee-estimated")
 

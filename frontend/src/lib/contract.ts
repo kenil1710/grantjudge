@@ -283,6 +283,26 @@ export const claimAward = (account: `0x${string}`, roundId: number, proposalId: 
 export const claimRemainder = (account: `0x${string}`, roundId: number) =>
   write(account, "claim_remainder", [roundId]);
 
+/**
+ * The remainder claim that does NOT post the transfer itself.
+ *
+ * `claim_remainder` is the only write in GrantJudge that both reads the block
+ * clock and posts a value transfer, and on Studio Dev that combination cannot
+ * be fee-estimated: the fee simulator runs on a clock roughly 664 days stale,
+ * so it simulates the call on the wrong side of the round's own appeal window,
+ * takes the refusal branch, emits no message, and budgets nothing for a
+ * transfer the real execution does post. The transaction then reverts with
+ * `out_of message_fee total`. Measured, four times — docs/PROBE.md §4b.
+ *
+ * This is the contract's own way around it: identical gate, identical books,
+ * no transfer. The remainder lands in the treasurer's claimable balance and
+ * `claimPayout` sweeps it — and `claim_payout` reads no clock, so its estimate
+ * is correct. The UI uses this path because on this network it is the one that
+ * completes.
+ */
+export const claimRemainderFallback = (account: `0x${string}`, roundId: number) =>
+  write(account, "claim_remainder_fallback", [roundId]);
+
 export const settleStalled = (account: `0x${string}`, roundId: number, proposalId: number) =>
   write(account, "settle_stalled", [roundId, proposalId]);
 
