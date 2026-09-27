@@ -87,6 +87,31 @@ export interface Round {
   stakes_wei: string;
   locked_wei: string;
   remainder_claimed: boolean;
+  // --- the milestone build; zero or empty on a plain round.
+  pool_id: number;
+  round_number: number;
+  template_id: number;
+  min_reputation: number;
+  co_approvers: string[];
+  approvals_needed: number;
+  approvals_count: number;
+  rejections_count: number;
+  approval_lapses_at: number;
+  approval_outcome: "" | "APPROVED" | "LAPSED";
+  milestones: MilestoneDef[];
+  milestone_count: number;
+  milestone_window_s: number;
+  original_deadline: number;
+  extensions_used: number;
+  extensions_left: number;
+}
+
+export interface MilestoneDef {
+  position: number;
+  description: string;
+  bps: number;
+  percentage: number;
+  proof_format: string;
 }
 
 export interface RoundCard {
@@ -110,6 +135,17 @@ export interface RoundCard {
   allocated_wei: string;
   finalized_at: number;
   created_at: number;
+  pool_id?: number;
+  round_number?: number;
+  approvals_needed?: number;
+  milestone_count?: number;
+  min_reputation?: number;
+  evaluated_count?: number;
+  rejected_count?: number;
+  qualified_count?: number;
+  contested_count?: number;
+  remainder_wei?: string;
+  approval_outcome?: string;
 }
 
 export interface ScoreRow {
@@ -179,6 +215,14 @@ export interface Proposal {
   contest_reason: string;
   contestable: boolean;
   claimable_wei: string;
+  paid_wei: string;
+  amendment: string;
+  amended_at: number;
+  milestone_held_wei: string;
+  milestone_released_wei: string;
+  milestone_lapsed_wei: string;
+  milestones_passed: number;
+  milestone_count: number;
 }
 
 /** The contract spells the written finding `reason`; `reason` is also the
@@ -374,4 +418,175 @@ export interface WriteResult {
   refunded_wei?: string;
   claim_with?: string;
   [key: string]: unknown;
+}
+
+/* --- the milestone build ------------------------------------------------ */
+
+export interface Pool {
+  found?: boolean;
+  reason?: string;
+  pool_id: number;
+  treasurer: string;
+  name: string;
+  description: string;
+  created_at: number;
+  template_id: number;
+  criteria: Criterion[];
+  criteria_hash: string;
+  max_proposals: number;
+  max_winners: number;
+  min_score_threshold: number;
+  min_score_text: string;
+  deadline_s: number;
+  co_approvers: string[];
+  approvals_needed: number;
+  approval_window_s: number;
+  milestones: MilestoneDef[];
+  milestone_window_s: number;
+  min_reputation: number;
+  round_count: number;
+  first_round_id: number;
+  latest_round_id: number;
+  reserve_wei: string;
+  reserve_gen: string;
+  topped_up_wei: string;
+  withdrawn_wei: string;
+}
+
+export interface PoolHistory {
+  found: boolean;
+  reason?: string;
+  pool: Pool;
+  rounds: RoundCard[];
+  total_rounds: number;
+  total_proposals: number;
+  total_funded: number;
+  total_distributed_wei: string;
+  total_distributed_gen: string;
+  total_pool_wei: string;
+  total_pool_gen: string;
+}
+
+export interface Approvals {
+  found: boolean;
+  reason?: string;
+  round_id: number;
+  required: boolean;
+  approvers: { address: string; vote: "APPROVE" | "REJECT" | "PENDING" }[];
+  approvals: number;
+  rejections: number;
+  approvals_needed: number;
+  satisfied: boolean;
+  lapses_at: number;
+  lapsed: boolean;
+  outcome: string;
+  status: RoundStatus;
+}
+
+export interface MilestoneRow {
+  index: number;
+  description: string;
+  percentage: number;
+  proof_format: string;
+  tranche_wei: string;
+  tranche_gen: string;
+  status: "" | "PASSED" | "FAILED" | "LAPSED";
+  attempts: number;
+  released_wei: string;
+  proof_url?: string;
+  proof_text?: string;
+  score?: number;
+  score_text?: string;
+  scores_csv?: string;
+  quality?: number;
+  content_hash?: string;
+  facts_hash?: string;
+  reason?: string;
+  verified_at?: number;
+}
+
+export interface MilestoneStatus {
+  found: boolean;
+  reason?: string;
+  round_id: number;
+  proposal_id: number;
+  has_milestones: boolean;
+  award_wei: string;
+  held_wei: string;
+  released_wei: string;
+  lapsed_wei: string;
+  passed: number;
+  next_milestone: number;
+  threshold: number;
+  lapses_at: number;
+  milestones: MilestoneRow[];
+}
+
+export interface ProposerStats {
+  found: boolean;
+  reason?: string;
+  address: string;
+  rounds_entered: number;
+  proposals_funded: number;
+  total_awarded_wei: string;
+  total_awarded_gen: string;
+  scored: number;
+  average_score: number;
+  average_score_text: string;
+  contests_won: number;
+  contests_lost: number;
+  reputation: number;
+}
+
+export interface Template {
+  found?: boolean;
+  reason?: string;
+  template_id: number;
+  creator: string;
+  name: string;
+  created_at: number;
+  criteria: Criterion[];
+  criteria_count: number;
+  criteria_hash: string;
+  pools?: number[];
+}
+
+export interface CriterionSpread {
+  name: string;
+  count: number;
+  mean: number;
+  min: number;
+  max: number;
+  stddev: number;
+}
+
+export interface Analytics {
+  found: boolean;
+  reason?: string;
+  round_id: number;
+  status: RoundStatus;
+  scored_count: number;
+  proposal_count: number;
+  skipped_count: number;
+  threshold: number;
+  criteria: CriterionSpread[];
+  distribution: number[];
+  mean_score: number;
+  funded_count: number;
+  funding_rate_bps: number;
+  contested_count: number;
+  contests_won: number;
+  contest_success_bps: number;
+}
+
+export interface RemainderRoute {
+  found: boolean;
+  reason?: string;
+  round_id: number;
+  status: RoundStatus;
+  step: "book" | "sweep" | "wait" | "done";
+  why: string;
+  remainder_wei: string;
+  claimable_wei: string;
+  treasurer: string;
 }

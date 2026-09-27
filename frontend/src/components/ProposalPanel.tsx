@@ -20,7 +20,8 @@ import { ProposalBadge } from "./StatusBadge";
 import { CriterionBar, TotalBar } from "./ScoreBar";
 import { VerifyPanel } from "./VerifyPanel";
 import { TxButton } from "./TxButton";
-import { claimAward, contest, evaluate, settleStalled } from "@/lib/contract";
+import { amendProposal, claimAward, contest, evaluate, settleStalled } from "@/lib/contract";
+import { MilestonePanel } from "./MilestonePanel";
 import { useWallet } from "./WalletProvider";
 
 type Props = {
@@ -44,6 +45,7 @@ export function ProposalPanel({ proposal, round, index, onChanged }: Props) {
   const { account } = useWallet();
   const [expanded, setExpanded] = useState(false);
   const [evidence, setEvidence] = useState("");
+  const [amendment, setAmendment] = useState("");
   const mine = sameAddress(account, proposal.author);
   const scored = proposal.evaluated_at > 0;
   const bracketList = brackets(proposal.bracket_csv);
@@ -61,8 +63,16 @@ export function ProposalPanel({ proposal, round, index, onChanged }: Props) {
   const stallsAt = round.deadline + round.stall_ttl_s;
   const canSettleStalled =
     proposal.status === "PENDING" && Math.floor(Date.now() / 1000) >= stallsAt;
-  const canClaim =
-    mine && !proposal.payout_claimed && Number(proposal.payout_wei) > 0 && proposal.settled_at > 0;
+  // What is owed NOW: on a milestone round this grows one tranche at a time,
+  // so the button reads the claimable amount rather than a one-shot flag.
+  const claimable = BigInt(proposal.claimable_wei ?? "0");
+  const canClaim = mine && claimable > 0n && proposal.settled_at > 0;
+  const canAmend =
+    mine &&
+    proposal.status === "PENDING" &&
+    round.status === "OPEN" &&
+    round.seconds_remaining > 0 &&
+    !proposal.amendment;
 
   return (
     <motion.div
@@ -169,6 +179,9 @@ export function ProposalPanel({ proposal, round, index, onChanged }: Props) {
         <div style={{ marginTop: 14, display: "grid", gap: 12 }}>
           <Block title="Timeline" body={proposal.timeline} />
           <Block title="Team" body={proposal.team} />
+          {proposal.amendment && (
+            <Block title="Amendment, added before the deadline" body={proposal.amendment} />
+          )}
           {proposal.contest_evidence && (
             <Block title="Evidence filed on appeal" body={proposal.contest_evidence} accent />
           )}
@@ -278,19 +291,64 @@ export function ProposalPanel({ proposal, round, index, onChanged }: Props) {
         )}
         {canClaim && (
           <TxButton
-            label={`Claim ${formatGen(proposal.payout_wei)} GEN`}
+            label={`Claim ${formatGen(proposal.claimable_wei)} GEN`}
             icon={<HandCoins size={16} />}
             send={(account) => claimAward(account, round.round_id, proposal.proposal_id)}
             onDone={onChanged}
           />
         )}
-        {proposal.payout_claimed && (
+        {proposal.payout_claimed && claimable === 0n && (
           <span style={{ fontSize: "0.8rem", color: "var(--muted)", alignSelf: "center" }}>
             <Users size={13} style={{ verticalAlign: -2, marginRight: 5 }} />
             claimed
           </span>
         )}
       </div>
+
+      <MilestonePanel proposal={proposal} round={round} onChanged={onChanged} />
+
+      {/* amendment */}
+      {canAmend && (
+        <div
+          style={{
+            marginTop: 20,
+            padding: 18,
+            borderRadius: 12,
+            background: "rgba(0,0,0,0.18)",
+            border: "1px solid var(--line-soft)",
+          }}
+        >
+          <strong style={{ fontSize: "0.9rem" }}>Add one amendment before the deadline</strong>
+          <p style={{ margin: "8px 0 12px", fontSize: "0.82rem", lineHeight: 1.6, color: "var(--cream-dim)" }}>
+            Stored beside your filing — the original is never rewritten. The validators read both and the content hash
+            commits to both. Sentences your filing already says are dropped before anything is stored, so it has to add
+            at least 20 new characters. One per proposal.
+          </p>
+          <textarea
+            className="textarea"
+            rows={4}
+            maxLength={1000}
+            placeholder="What the filing left out…"
+            value={amendment}
+            onChange={(e) => setAmendment(e.target.value)}
+          />
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, marginTop: 10, flexWrap: "wrap" }}>
+            <span style={{ fontSize: "0.75rem", color: amendment.trim().length < 20 ? "var(--rose)" : "var(--muted)" }}>
+              {amendment.length}/1000
+            </span>
+            <TxButton
+              label="Add the amendment"
+              icon={<Sparkles size={16} />}
+              disabled={amendment.trim().length < 20}
+              send={(account) => amendProposal(account, round.round_id, proposal.proposal_id, amendment.trim())}
+              onDone={() => {
+                setAmendment("");
+                onChanged();
+              }}
+            />
+          </div>
+        </div>
+      )}
 
       {/* appeal */}
       {proposal.contestable && mine && (

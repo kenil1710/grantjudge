@@ -22,7 +22,14 @@ import { ProposalPanel } from "@/components/ProposalPanel";
 import { TxButton } from "@/components/TxButton";
 import { EmptyState, ErrorState, SkeletonCard, SkeletonGrid } from "@/components/States";
 import { useProposals, useRankings, useRound } from "@/lib/hooks";
-import { cancelRound, claimRemainderFallback, finalize } from "@/lib/contract";
+import { cancelRound, finalize } from "@/lib/contract";
+import {
+  AnalyticsPanel,
+  ApprovalsPanel,
+  BatchEvaluate,
+  PoolRibbon,
+  TreasurerTools,
+} from "@/components/RoundExtras";
 import { useWallet } from "@/components/WalletProvider";
 import { formatGen, formatTime, sameAddress, scoreText, shortAddress } from "@/lib/format";
 
@@ -88,13 +95,18 @@ export default function RoundPage({ params }: { params: Promise<{ id: string }> 
 
   const isTreasurer = sameAddress(account, round.treasurer);
   const pending = round.pending_count;
+  // A round with co-approvers is finalized by the signature that makes the
+  // majority; the open button appears only once that is done or has lapsed.
+  const approvalsHold =
+    round.approvals_needed > 0 &&
+    round.approvals_count < round.approvals_needed &&
+    Math.floor(Date.now() / 1000) <= round.approval_lapses_at;
   const canFinalize =
     (round.status === "OPEN" || round.status === "EVALUATING") &&
     round.seconds_remaining === 0 &&
-    pending === 0;
+    pending === 0 &&
+    !approvalsHold;
   const canCancel = isTreasurer && round.status === "OPEN" && round.proposal_count === 0;
-  const canClaimRemainder =
-    isTreasurer && round.status === "RANKED" && !round.contest_open && !round.remainder_claimed;
 
   return (
     <AppShell wide>
@@ -107,6 +119,7 @@ export default function RoundPage({ params }: { params: Promise<{ id: string }> 
 
       {/* --- header ------------------------------------------------------- */}
       <div className="card" style={{ padding: "clamp(20px, 3.5vw, 30px)", marginBottom: 22 }}>
+        <PoolRibbon round={round} />
         <div style={{ display: "flex", flexWrap: "wrap", gap: 18, justifyContent: "space-between", alignItems: "flex-start" }}>
           <div style={{ minWidth: 0, flex: "1 1 340px" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 10 }}>
@@ -247,28 +260,7 @@ export default function RoundPage({ params }: { params: Promise<{ id: string }> 
               onDone={reload}
             />
           )}
-          {canClaimRemainder && (
-            <>
-              {/* TWO TRANSACTIONS, DELIBERATELY. `claim_remainder` cannot be
-                  fee-estimated on Studio Dev (docs/PROBE.md §4b), so this books
-                  the remainder to the treasurer's claimable balance and the
-                  sweep on /my-proposals posts the transfer. Both steps estimate
-                  correctly; the one-call form does not. */}
-              <TxButton
-                label={`Claim ${formatGen(round.remainder_wei)} GEN remainder`}
-                icon={<HandCoins size={16} />}
-                title="Credits the remainder to your balance; sweep it from My proposals."
-                send={(account) => claimRemainderFallback(account, round.round_id)}
-                onDone={reload}
-              />
-              <span style={{ fontSize: "0.8rem", color: "var(--muted)", alignSelf: "center", maxWidth: 420, lineHeight: 1.5 }}>
-                This credits the remainder to your balance. Withdraw it from{" "}
-                <Link href="/my-proposals">My proposals</Link> — two
-                transactions, because the one-call form cannot be fee-estimated
-                on this network.
-              </span>
-            </>
-          )}
+          <TreasurerTools round={round} onDone={reload} />
           {round.status === "RANKED" && round.contest_open && isTreasurer && (
             <span style={{ fontSize: "0.8rem", color: "var(--muted)", alignSelf: "center", maxWidth: 420, lineHeight: 1.5 }}>
               The remainder is claimable once the appeal window closes — a
@@ -305,8 +297,12 @@ export default function RoundPage({ params }: { params: Promise<{ id: string }> 
             that does not settle — because two validators read the proposal onto
             opposite sides of the bar — writes nothing and can be run again.
           </p>
+          <BatchEvaluate round={round} onDone={reload} />
         </div>
       )}
+
+      <ApprovalsPanel round={round} onDone={reload} />
+      <AnalyticsPanel round={round} />
 
       {/* --- proposals ---------------------------------------------------- */}
       {round.proposal_count === 0 ? (

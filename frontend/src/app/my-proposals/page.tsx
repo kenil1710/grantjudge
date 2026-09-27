@@ -174,7 +174,8 @@ export default function MyProposalsPage() {
 
       <div style={{ display: "grid", gap: 14 }}>
         {(tab === "proposals" ? proposals : []).map((p) => {
-          const claimable = !p.payout_claimed && BigInt(p.payout_wei) > 0n;
+          // Owed NOW - on a milestone round this grows one tranche at a time.
+          const claimable = BigInt(p.claimable_wei ?? "0") > 0n;
           return (
             <div key={p.proposal_id} className="card card-hover" style={{ padding: 20 }}>
               <div style={{ display: "flex", flexWrap: "wrap", gap: 12, justifyContent: "space-between", alignItems: "flex-start" }}>
@@ -223,7 +224,7 @@ export default function MyProposalsPage() {
                 <div style={{ marginLeft: "auto", display: "flex", gap: 10, flexWrap: "wrap" }}>
                   {claimable && (
                     <TxButton
-                      label={`Claim ${formatGen(p.payout_wei)} GEN`}
+                      label={`Claim ${formatGen(p.claimable_wei)} GEN`}
                       icon={<Coins size={15} />}
                       send={(acct) => claimAward(acct, p.round_id, p.proposal_id)}
                       onDone={() => {

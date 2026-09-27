@@ -16,6 +16,14 @@
  */
 import { CONTRACT_ADDRESS, CONSUMER_ADDRESS, getReadClient, getWalletClient } from "./genlayer";
 import type {
+  Analytics,
+  Approvals,
+  MilestoneStatus,
+  Pool,
+  PoolHistory,
+  ProposerStats,
+  RemainderRoute,
+  Template,
   Config,
   Preview,
   Proposal,
@@ -125,6 +133,26 @@ export const previewProposal = (
 ) => read<Preview>("preview_proposal", [roundId, description, timeline, team]);
 export const getAward = (roundId: number, proposalId: number) =>
   read<Record<string, unknown>>("get_award", [roundId, proposalId]);
+
+/* --- the milestone build: pools, approvals, milestones, reputation ------ */
+
+export const getPool = (poolId: number) => read<Pool>("get_pool", [poolId]);
+export const getPools = (offset = 0, count = 50) =>
+  read<{ total: number; offset: number; count: number; pools: Pool[] }>("get_pools", [offset, count]);
+export const getPoolHistory = (poolId: number) =>
+  read<PoolHistory>("get_pool_history", [poolId]);
+export const getApprovals = (roundId: number) => read<Approvals>("get_approvals", [roundId]);
+export const getMilestoneStatus = (roundId: number, proposalId: number) =>
+  read<MilestoneStatus>("get_milestone_status", [roundId, proposalId]);
+export const getProposerStats = (address: string) =>
+  read<ProposerStats>("get_proposer_stats", [address]);
+export const getTemplates = () =>
+  read<{ count: number; templates: Template[] }>("get_templates");
+export const getTemplate = (templateId: number) => read<Template>("get_template", [templateId]);
+export const getRoundAnalytics = (roundId: number) =>
+  read<Analytics>("get_round_analytics", [roundId]);
+export const getRemainderRoute = (roundId: number, address: string) =>
+  read<RemainderRoute>("get_remainder_route", [roundId, address]);
 
 /** The consumer's own view of a grant. Only called when it is configured. */
 export const previewGrant = (roundId: number, proposalId: number) => {
@@ -307,6 +335,169 @@ export const settleStalled = (account: `0x${string}`, roundId: number, proposalI
   write(account, "settle_stalled", [roundId, proposalId]);
 
 export const claimPayout = (account: `0x${string}`) => write(account, "claim_payout");
+
+/* --- the milestone build: writes ---------------------------------------- */
+
+export type PoolOptions = {
+  co_approvers?: string[];
+  approval_window_s?: number;
+  milestones?: { description: string; percentage: number; proof_format: string }[];
+  milestone_window_s?: number;
+  min_reputation?: number;
+};
+
+/** The options JSON, with every empty option left OUT rather than sent as an
+ *  empty value — "" is how the contract spells "none of it". */
+export function optionsJson(options: PoolOptions): string {
+  const out: PoolOptions = {};
+  if (options.co_approvers?.length) {
+    out.co_approvers = options.co_approvers;
+    if (options.approval_window_s) out.approval_window_s = options.approval_window_s;
+  }
+  if (options.milestones?.length) {
+    out.milestones = options.milestones;
+    if (options.milestone_window_s) out.milestone_window_s = options.milestone_window_s;
+  }
+  if (options.min_reputation) out.min_reputation = options.min_reputation;
+  return Object.keys(out).length ? JSON.stringify(out) : "";
+}
+
+export const createPool = (
+  account: `0x${string}`,
+  args: {
+    name: string;
+    description: string;
+    criteriaJson: string;
+    maxProposals: number;
+    maxWinners: number;
+    minScoreThreshold: number;
+    deadlineSeconds: number;
+    poolWei: bigint;
+    options: PoolOptions;
+  },
+) =>
+  write(
+    account,
+    "create_pool",
+    [
+      args.name,
+      args.description,
+      args.criteriaJson,
+      args.maxProposals,
+      args.maxWinners,
+      args.minScoreThreshold,
+      args.deadlineSeconds,
+      optionsJson(args.options),
+    ],
+    args.poolWei,
+  );
+
+export const createRoundFromTemplate = (
+  account: `0x${string}`,
+  args: {
+    poolId: number;
+    templateId: number;
+    name: string;
+    description: string;
+    maxProposals: number;
+    maxWinners: number;
+    minScoreThreshold: number;
+    deadlineSeconds: number;
+    poolWei: bigint;
+    options: PoolOptions;
+  },
+) =>
+  write(
+    account,
+    "create_round_from_template",
+    [
+      args.poolId,
+      args.templateId,
+      args.name,
+      args.description,
+      args.maxProposals,
+      args.maxWinners,
+      args.minScoreThreshold,
+      args.deadlineSeconds,
+      optionsJson(args.options),
+    ],
+    args.poolWei,
+  );
+
+export const createNextRound = (account: `0x${string}`, poolId: number, valueWei = 0n) =>
+  write(account, "create_next_round", [poolId], valueWei);
+export const topUpPool = (account: `0x${string}`, poolId: number, valueWei: bigint) =>
+  write(account, "top_up_pool", [poolId], valueWei);
+export const withdrawReserve = (account: `0x${string}`, poolId: number) =>
+  write(account, "withdraw_reserve", [poolId]);
+export const createTemplate = (account: `0x${string}`, name: string, criteriaJson: string) =>
+  write(account, "create_template", [name, criteriaJson]);
+export const approveFinalization = (account: `0x${string}`, roundId: number) =>
+  write(account, "approve_finalization", [roundId]);
+export const rejectFinalization = (account: `0x${string}`, roundId: number) =>
+  write(account, "reject_finalization", [roundId]);
+export const submitMilestoneProof = (
+  account: `0x${string}`,
+  args: { roundId: number; proposalId: number; index: number; url: string; text: string },
+) =>
+  write(account, "submit_milestone_proof", [
+    args.roundId,
+    args.proposalId,
+    args.index,
+    args.url,
+    args.text,
+  ]);
+export const reclaimLapsedMilestones = (
+  account: `0x${string}`,
+  roundId: number,
+  proposalId: number,
+) => write(account, "reclaim_lapsed_milestones", [roundId, proposalId]);
+export const evaluateAll = (account: `0x${string}`, roundId: number) =>
+  write(account, "evaluate_all", [roundId]);
+export const amendProposal = (
+  account: `0x${string}`,
+  roundId: number,
+  proposalId: number,
+  text: string,
+) => write(account, "amend_proposal", [roundId, proposalId, text]);
+export const extendDeadline = (account: `0x${string}`, roundId: number, seconds: number) =>
+  write(account, "extend_deadline", [roundId, seconds]);
+
+/**
+ * SMART REMAINDER HANDLING — one click, and the remainder arrives.
+ *
+ * The failure `claim_remainder_fallback` exists for happens in fee ESTIMATION,
+ * before the contract runs, so no contract can catch it and reroute. The route
+ * therefore lives here: ask `get_remainder_route` which single step is next,
+ * take it, and repeat. `book` credits the remainder without a transfer; `sweep`
+ * posts the transfer from a method that reads no clock. `claim_remainder` is
+ * never tried, because on this network it is the door that fails.
+ *
+ * Returns the LAST transaction's hash so `TxButton` can show the outcome of the
+ * step that actually moved the money; the earlier step is awaited here.
+ */
+export async function takeRemainder(
+  account: `0x${string}`,
+  roundId: number,
+): Promise<TransactionHash> {
+  let last: TransactionHash | null = null;
+  for (let i = 0; i < 3; i++) {
+    const route = await getRemainderRoute(roundId, account);
+    if (route.step === "book") {
+      last = await write(account, "claim_remainder_fallback", [roundId]);
+      const result = await waitForResult(last);
+      if (result.status !== "OK") return last;
+      continue;
+    }
+    if (route.step === "sweep") return write(account, "claim_payout");
+    if (last) return last;
+    throw new Error(
+      route.step === "wait" ? route.why : "Nothing of this round's remainder is left to take.",
+    );
+  }
+  if (last) return last;
+  throw new Error("The remainder route did not settle; try again.");
+}
 
 /* --- waiting for a transaction ---------------------------------------- */
 

@@ -197,3 +197,15 @@ h1, h2, h3, .serif {
   .pulse, .skeleton { animation: none; }
   html { scroll-behavior: auto; }
 }
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  color: var(--cream-dim);
+  background: rgba(212, 168, 71, 0.08);
+  border: 1px solid rgba(212, 168, 71, 0.18);
+  white-space: nowrap;
+}

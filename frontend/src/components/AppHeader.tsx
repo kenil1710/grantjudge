@@ -6,7 +6,9 @@ import { useState } from "react";
 import {
   BookOpen,
   FilePlus2,
+  Award,
   Gavel,
+  Layers,
   LayoutGrid,
   Menu,
   PlusCircle,
@@ -20,10 +22,12 @@ import { NETWORK_LABEL } from "@/lib/genlayer";
 
 const NAV = [
   { href: "/rounds", label: "Rounds", Icon: LayoutGrid },
+  { href: "/pools", label: "Pools", Icon: Layers },
   { href: "/propose", label: "Propose", Icon: FilePlus2 },
   { href: "/create", label: "Create", Icon: PlusCircle },
   { href: "/my-proposals", label: "Mine", Icon: User },
   { href: "/verdicts", label: "Verdicts", Icon: Gavel },
+  { href: "/reputation", label: "Reputation", Icon: Award },
   { href: "/docs", label: "Docs", Icon: BookOpen },
 ];
 
@@ -162,13 +166,13 @@ export function AppHeader() {
       )}
 
       <style>{`
-        @media (min-width: 900px) {
+        @media (min-width: 1100px) {
           .nav-desktop { display: flex !important; }
           .nav-toggle { display: none !important; }
           .wallet-desktop { display: block !important; }
           .network-badge { display: inline-flex !important; }
         }
-        @media (min-width: 560px) and (max-width: 899px) {
+        @media (min-width: 560px) and (max-width: 1099px) {
           .network-badge { display: inline-flex !important; }
         }
       `}</style>

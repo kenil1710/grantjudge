@@ -8,6 +8,7 @@ import {
   Droplets,
   Gavel,
   HelpCircle,
+  Layers,
   Scale,
   ShieldAlert,
   Sigma,
@@ -26,6 +27,7 @@ const SECTIONS = [
   { id: "scoring", label: "How scoring works", Icon: Scale },
   { id: "contest", label: "The appeal", Icon: ShieldAlert },
   { id: "settlement", label: "Settlement maths", Icon: Sigma },
+  { id: "pools", label: "Pools & milestones", Icon: Layers },
   { id: "integrate", label: "Integration guide", Icon: Boxes },
   { id: "faq", label: "FAQ", Icon: HelpCircle },
 ];
@@ -280,6 +282,56 @@ export default function DocsPage() {
               as scoring badly and must not cost the same — and the round can
               then be finalised. That call works while paused, by design and by
               test.
+            </P>
+          </Section>
+
+          <Section id="pools" title="Pools, approvals, milestones and reputation" Icon={Layers}>
+            <P>
+              Every one of these is optional. A round opened with the plain wizard sets none of them and settles
+              exactly as described above. When they are set, the same rules hold — and each one says where it was
+              hardest to keep them.
+            </P>
+            <H3>Multi-round pools</H3>
+            <P>
+              A pool runs one rubric round after round. The treasurer tops up a <strong>reserve</strong> between
+              rounds and opens the next one from it; the reserve is never promised to anyone, so it can be withdrawn
+              at any time. A filing the pool has already read — in any round, by any wallet — is refused before its
+              deposit is taken. The match survives re-spacing and re-casing; a proposal rewritten in new words is new.
+            </P>
+            <H3>Co-approvers</H3>
+            <P>
+              One to three named wallets; a majority must sign off before the round is ranked, and the signature that
+              makes the majority ranks it in the same transaction. They sign off on a ranking that is already
+              decided — every proposal must be scored first, and they cannot touch a criterion, a score or a seat. If
+              they never sign, the requirement <strong>lapses</strong> after the pool&rsquo;s approval window and
+              anyone may finalize: an approver&rsquo;s silence must not freeze anybody&rsquo;s deposit, for the same
+              reason the owner&rsquo;s pause must not.
+            </P>
+            <H3>Milestone release</H3>
+            <P>
+              The award is fixed at ranking and <strong>held</strong>. The winner files a proof per milestone, in
+              order; the validators judge it with the same bracket system as a proposal, against the milestone as the
+              treasurer wrote it, and a proof that clears 4.00 releases that milestone&rsquo;s share. The last
+              milestone releases whatever is left, so the tranches sum to the award exactly. The proof&rsquo;s URL is
+              a citation — shown to the validators and committed to in the content hash, but never fetched, because a
+              page can say different things to two validators and vanish before an audit. The text has to describe
+              the delivery. A tranche never delivered goes back to the treasurer after the delivery window.
+            </P>
+            <H3>Reputation, templates, amendments, extensions</H3>
+            <P>
+              Reputation is computed from a wallet&rsquo;s own proposals on every read — there is no field to set. A
+              pool may require a number of funded proposals to enter; zero admits anybody. Templates are named rubrics
+              anyone may open a pool with, and cannot be edited once saved. A proposer may add one amendment before
+              the deadline, stored beside the filing and read with it. A treasurer may extend an open, unfilled round
+              twice, by up to seven days each; the config hash keeps the original deadline.
+            </P>
+            <H3>One-click remainder</H3>
+            <P>
+              On Studio Dev the one-call <code>claim_remainder</code> cannot be fee-estimated, and that failure
+              happens before the contract runs, so no contract can catch it. The app asks{" "}
+              <code>get_remainder_route</code> for the next step and takes it: book with{" "}
+              <code>claim_remainder_fallback</code>, then sweep with <code>claim_payout</code>. One click, two
+              transactions, both estimable.
             </P>
           </Section>
 

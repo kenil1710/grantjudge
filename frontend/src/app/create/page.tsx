@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -9,7 +9,10 @@ import {
   CheckCircle2,
   Coins,
   Info,
+  Layers,
   ListChecks,
+  Plus,
+  Trash2,
   Rocket,
   ScrollText,
   SlidersHorizontal,
@@ -19,13 +22,14 @@ import { Confetti } from "@/components/Confetti";
 import { CriteriaEditor, type DraftCriterion } from "@/components/CriteriaEditor";
 import { TxButton } from "@/components/TxButton";
 import { useConfig } from "@/lib/hooks";
-import { createRound } from "@/lib/contract";
+import { createPool, createRound, type PoolOptions } from "@/lib/contract";
 import { formatGen, parseGen, scoreText } from "@/lib/format";
 
 const STEPS = [
   { title: "The round", Icon: ScrollText },
   { title: "The rubric", Icon: ListChecks },
   { title: "The rules", Icon: SlidersHorizontal },
+  { title: "Pool options", Icon: Layers },
   { title: "The pool", Icon: Coins },
   { title: "Review", Icon: Rocket },
 ];
@@ -73,6 +77,27 @@ export default function CreatePage() {
   const [threshold, setThreshold] = useState(400);
   const [pool, setPool] = useState("5");
   const [created, setCreated] = useState<number | null>(null);
+  // --- the milestone build: every one of these is optional, and with all of
+  // them off the wizard opens a plain round exactly as it always did.
+  const [asPool, setAsPool] = useState(false);
+  const [approvers, setApprovers] = useState<string[]>([]);
+  const [milestones, setMilestones] = useState<{ description: string; percentage: number; proof_format: string }[]>([]);
+  const [minReputation, setMinReputation] = useState(0);
+  const [createdPool, setCreatedPool] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (typeof window !== "undefined" && new URLSearchParams(window.location.search).get("pool") === "1") {
+      setAsPool(true);
+    }
+  }, []);
+
+  const HEX = /^0x[0-9a-fA-F]{40}$/;
+  const milestoneTotal = milestones.reduce((s, m) => s + (Number(m.percentage) || 0), 0);
+  const options: PoolOptions = {
+    co_approvers: approvers.map((a) => a.trim()).filter(Boolean),
+    milestones: milestones.map((m) => ({ ...m, description: m.description.trim(), proof_format: m.proof_format.trim() })),
+    min_reputation: minReputation,
+  };
 
   const minCriteria = config?.min_criteria ?? 3;
   const maxCriteria = config?.max_criteria ?? 5;
@@ -112,6 +137,20 @@ export default function CreatePage() {
         : []),
     ],
     [
+      ...(asPool && approvers.some((a) => !HEX.test(a.trim()))
+        ? ["Every co-approver must be a 0x address."]
+        : []),
+      ...(asPool && new Set(approvers.map((a) => a.trim().toLowerCase())).size !== approvers.length
+        ? ["A co-approver cannot be listed twice."]
+        : []),
+      ...(asPool && milestones.length > 0 && milestoneTotal !== 100
+        ? [`Milestone percentages total ${milestoneTotal}% and must be exactly 100%.`]
+        : []),
+      ...(asPool && milestones.some((m) => m.description.trim().length < 3)
+        ? ["Every milestone needs a description."]
+        : []),
+    ],
+    [
       ...(poolWei < minPoolWei
         ? [`The pool must be at least ${formatGen(minPoolWei)} GEN.`]
         : []),
@@ -141,7 +180,11 @@ export default function CreatePage() {
             <Link href={`/round/${created}`} className="btn btn-primary">
               Open the round <ArrowRight size={15} />
             </Link>
-            <Link href="/rounds" className="btn btn-ghost">All rounds</Link>
+            {createdPool ? (
+              <Link href={`/pool/${createdPool}`} className="btn btn-ghost">Pool #{createdPool}</Link>
+            ) : (
+              <Link href="/rounds" className="btn btn-ghost">All rounds</Link>
+            )}
           </div>
         </div>
       </AppShell>
@@ -152,7 +195,7 @@ export default function CreatePage() {
     <AppShell
       eyebrow="Create"
       title="Open a grant round"
-      blurb="Five steps. The pool locks when you submit and the rubric is fixed for good — there is no setter for either, which is the point."
+      blurb="Six steps. The pool locks when you submit and the rubric is fixed for good — there is no setter for either, which is the point."
     >
       {/* stepper */}
       <div
@@ -315,6 +358,126 @@ export default function CreatePage() {
           )}
 
           {step === 3 && (
+            <div className="card" style={{ padding: 24, display: "grid", gap: 20 }}>
+              <label style={{ display: "flex", gap: 10, alignItems: "flex-start", cursor: "pointer" }}>
+                <input type="checkbox" checked={asPool} onChange={(e) => setAsPool(e.target.checked)} style={{ marginTop: 4 }} />
+                <span>
+                  <strong>Run this as a multi-round pool</strong>
+                  <span style={{ display: "block", fontSize: "0.82rem", color: "var(--muted)", lineHeight: 1.6, marginTop: 3 }}>
+                    Same rubric every round, fresh proposals each time. Top up the reserve between rounds and open the next
+                    one from the pool&apos;s page. A proposal the pool has already read cannot be filed again word for word.
+                    Leave this off for a single plain round — nothing below applies to one.
+                  </span>
+                </span>
+              </label>
+
+              {asPool && (
+                <>
+                  <Field
+                    label="Co-approvers (optional, up to 3)"
+                    hint="A majority must sign off before the round is ranked: 1 of 1, 2 of 2, 2 of 3. They cannot touch scores or criteria, and if they never sign the requirement lapses so nobody's deposit is frozen."
+                  >
+                    <div style={{ display: "grid", gap: 8 }}>
+                      {approvers.map((a, i) => (
+                        <div key={i} style={{ display: "flex", gap: 8 }}>
+                          <input
+                            className="input mono"
+                            placeholder="0x…"
+                            value={a}
+                            onChange={(e) => setApprovers(approvers.map((x, j) => (j === i ? e.target.value : x)))}
+                          />
+                          <button className="btn btn-ghost" aria-label="Remove co-approver" onClick={() => setApprovers(approvers.filter((_, j) => j !== i))}>
+                            <Trash2 size={15} />
+                          </button>
+                        </div>
+                      ))}
+                      {approvers.length < 3 && (
+                        <button className="btn btn-ghost" style={{ justifySelf: "start" }} onClick={() => setApprovers([...approvers, ""])}>
+                          <Plus size={15} /> Add a co-approver
+                        </button>
+                      )}
+                    </div>
+                  </Field>
+
+                  <Field
+                    label="Milestone release (optional, up to 4)"
+                    hint="Winners are paid in tranches. Each proof is judged by the validators against the milestone as you write it here; percentages must total exactly 100. A tranche never delivered returns to you after the delivery window."
+                  >
+                    <div style={{ display: "grid", gap: 10 }}>
+                      {milestones.map((m, i) => (
+                        <div key={i} style={{ display: "grid", gap: 6, padding: 10, borderRadius: 10, border: "1px solid var(--line-soft)" }}>
+                          <div style={{ display: "flex", gap: 8 }}>
+                            <input
+                              className="input"
+                              placeholder={i === 0 ? "MVP demo" : "Final delivery"}
+                              value={m.description}
+                              maxLength={200}
+                              onChange={(e) => setMilestones(milestones.map((x, j) => (j === i ? { ...x, description: e.target.value } : x)))}
+                            />
+                            <input
+                              className="input"
+                              style={{ width: 84 }}
+                              type="number"
+                              min={1}
+                              max={100}
+                              value={m.percentage}
+                              aria-label="Percentage"
+                              onChange={(e) => setMilestones(milestones.map((x, j) => (j === i ? { ...x, percentage: Number(e.target.value) || 0 } : x)))}
+                            />
+                            <button className="btn btn-ghost" aria-label="Remove milestone" onClick={() => setMilestones(milestones.filter((_, j) => j !== i))}>
+                              <Trash2 size={15} />
+                            </button>
+                          </div>
+                          <input
+                            className="input"
+                            placeholder="Expected proof, e.g. release tag and usage figures"
+                            value={m.proof_format}
+                            maxLength={120}
+                            onChange={(e) => setMilestones(milestones.map((x, j) => (j === i ? { ...x, proof_format: e.target.value } : x)))}
+                          />
+                        </div>
+                      ))}
+                      {milestones.length < 4 && (
+                        <button
+                          className="btn btn-ghost"
+                          style={{ justifySelf: "start" }}
+                          onClick={() =>
+                            setMilestones([
+                              ...milestones,
+                              { description: "", percentage: milestones.length === 0 ? 60 : 40, proof_format: "" },
+                            ])
+                          }
+                        >
+                          <Plus size={15} /> Add a milestone
+                        </button>
+                      )}
+                      {milestones.length > 0 && (
+                        <span style={{ fontSize: "0.78rem", color: milestoneTotal === 100 ? "var(--muted)" : "var(--rose)" }}>
+                          total {milestoneTotal}%
+                        </span>
+                      )}
+                    </div>
+                  </Field>
+
+                  <Field
+                    label="Reputation floor"
+                    hint="How many proposals this contract must already have funded for a wallet to enter. Zero admits anybody. Reputation is computed from on-chain history and nobody can set it."
+                  >
+                    <input
+                      className="input"
+                      type="number"
+                      min={0}
+                      max={10}
+                      value={minReputation}
+                      onChange={(e) => setMinReputation(Math.max(0, Math.min(10, Number(e.target.value) || 0)))}
+                    />
+                  </Field>
+                </>
+              )}
+            </div>
+          )}
+
+          {step === 4 && (
             <div className="card" style={{ padding: 24 }}>
               <Field
                 label="Pool (GEN)"
@@ -340,7 +503,7 @@ export default function CreatePage() {
             </div>
           )}
 
-          {step === 4 && (
+          {step === 5 && (
             <div style={{ display: "grid", gap: 16 }}>
               <div className="card" style={{ padding: 24 }}>
                 <h3 style={{ margin: "0 0 4px", fontSize: "1.3rem" }}>{name || "Untitled round"}</h3>
@@ -354,6 +517,14 @@ export default function CreatePage() {
                   <Summary label="The bar" value={`${scoreText(threshold)} / 7.00`} />
                   <Summary label="Open for" value={WINDOWS.find((w) => w.seconds === deadline)?.label ?? `${deadline}s`} />
                   <Summary label="Deposit" value={`${config ? formatGen(config.spam_stake_wei) : "0.10"} GEN`} />
+                  {asPool && <Summary label="Series" value="multi-round pool" />}
+                  {asPool && options.co_approvers!.length > 0 && (
+                    <Summary label="Sign-off" value={`${Math.floor(options.co_approvers!.length / 2) + 1} of ${options.co_approvers!.length}`} />
+                  )}
+                  {asPool && milestones.length > 0 && (
+                    <Summary label="Release" value={milestones.map((m) => `${m.percentage}%`).join(" / ")} />
+                  )}
+                  {asPool && minReputation > 0 && <Summary label="Floor" value={`${minReputation} funded`} />}
                 </div>
                 <div style={{ marginTop: 22, paddingTop: 18, borderTop: "1px solid var(--line-soft)" }}>
                   <div style={{ fontSize: "0.72rem", letterSpacing: "0.1em", textTransform: "uppercase", color: "var(--gold)", marginBottom: 12 }}>
@@ -389,12 +560,24 @@ export default function CreatePage() {
               )}
 
               <TxButton
-                label={`Open the round · deposit ${pool || "0"} GEN`}
+                label={`${asPool ? "Open the pool" : "Open the round"} · deposit ${pool || "0"} GEN`}
                 pendingLabel="Opening…"
                 icon={<Rocket size={16} />}
                 disabled={allProblems.length > 0}
                 send={(account) =>
-                  createRound(account, {
+                  asPool
+                    ? createPool(account, {
+                        name: name.trim(),
+                        description: description.trim(),
+                        criteriaJson,
+                        maxProposals,
+                        maxWinners,
+                        minScoreThreshold: threshold,
+                        deadlineSeconds: deadline,
+                        poolWei,
+                        options,
+                      })
+                    : createRound(account, {
                     name: name.trim(),
                     description: description.trim(),
                     criteriaJson,
@@ -406,7 +589,10 @@ export default function CreatePage() {
                   })
                 }
                 onDone={(result) => {
-                  if (result.status === "OK") setCreated(Number(result.round_id ?? 0) || -1);
+                  if (result.status === "OK") {
+                    setCreated(Number(result.round_id ?? 0) || -1);
+                    if (result.pool_id) setCreatedPool(Number(result.pool_id));
+                  }
                 }}
               />
             </div>

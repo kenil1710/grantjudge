@@ -14,6 +14,16 @@
  */
 import useSWR from "swr";
 import {
+  getApprovals,
+  getMilestoneStatus,
+  getPool,
+  getPoolHistory,
+  getPools,
+  getProposerStats,
+  getRemainderRoute,
+  getRoundAnalytics,
+  getTemplate,
+  getTemplates,
   getConfig,
   getOpenRounds,
   getProposal,
@@ -121,4 +131,58 @@ export const usePreview = (
       : null,
     () => previewProposal(roundId as number, description, timeline, team),
     { ...STABLE, keepPreviousData: true },
+  );
+
+/* --- the milestone build ------------------------------------------------ */
+
+export const usePools = () => useSWR("pools", () => getPools(0, 60), { ...STABLE, refreshInterval: 30_000 });
+
+export const usePool = (poolId: number | null) =>
+  useSWR(poolId ? ["pool", poolId] : null, () => getPool(poolId as number), STABLE);
+
+export const usePoolHistory = (poolId: number | null) =>
+  useSWR(
+    poolId ? ["pool-history", poolId] : null,
+    () => getPoolHistory(poolId as number),
+    { ...STABLE, refreshInterval: 30_000 },
+  );
+
+export const useApprovals = (roundId: number | null, enabled: boolean) =>
+  useSWR(
+    enabled && roundId ? ["approvals", roundId] : null,
+    () => getApprovals(roundId as number),
+    { ...STABLE, refreshInterval: 20_000 },
+  );
+
+export const useMilestoneStatus = (roundId: number | null, proposalId: number | null, enabled: boolean) =>
+  useSWR(
+    enabled && roundId && proposalId ? ["milestones", roundId, proposalId] : null,
+    () => getMilestoneStatus(roundId as number, proposalId as number),
+    STABLE,
+  );
+
+export const useProposerStats = (address: string | null) =>
+  useSWR(
+    address ? ["proposer", address.toLowerCase()] : null,
+    () => getProposerStats(address as string),
+    STABLE,
+  );
+
+export const useTemplates = () => useSWR("templates", getTemplates, STABLE);
+
+export const useTemplate = (templateId: number | null) =>
+  useSWR(templateId ? ["template", templateId] : null, () => getTemplate(templateId as number), STABLE);
+
+export const useAnalytics = (roundId: number | null, enabled: boolean) =>
+  useSWR(
+    enabled && roundId ? ["analytics", roundId] : null,
+    () => getRoundAnalytics(roundId as number),
+    STABLE,
+  );
+
+export const useRemainderRoute = (roundId: number | null, address: string | null) =>
+  useSWR(
+    roundId && address ? ["remainder-route", roundId, address.toLowerCase()] : null,
+    () => getRemainderRoute(roundId as number, address as string),
+    { ...STABLE, refreshInterval: 20_000 },
   );
