@@ -43,6 +43,13 @@ const ROLES = [
   "treasurer1", "treasurer2", "treasurer3",
   "builder1", "builder2", "builder3", "builder4", "builder5",
   "trigger", "outsider",
+  // The milestone seed (seed_milestone.mjs) runs on wallets of its own, so it
+  // can run beside seed.mjs without two scripts racing one nonce - and so
+  // `newcomer` is a wallet the chain has genuinely never seen fund anything,
+  // which is what a reputation floor has to be shown refusing.
+  "ptreasurer1", "ptreasurer2", "ptreasurer3",
+  "pbuilder1", "pbuilder2", "pbuilder3", "pbuilder4", "pbuilder5",
+  "approver1", "approver2", "newcomer", "ptrigger",
 ];
 
 const existing = existsSync(target) && !force ? JSON.parse(readFileSync(target, "utf8")) : {};

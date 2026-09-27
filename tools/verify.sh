@@ -63,7 +63,7 @@ step "frontend typecheck and production build"
 result $?
 
 step "the live app answers"
-for path in "" rounds propose create verdicts docs my-proposals; do
+for path in "" rounds propose create verdicts docs my-proposals pools templates reputation; do
   code=$(curl -s -o /dev/null -w "%{http_code}" "https://grantjudge-app.vercel.app/$path" || echo 000)
   printf '    %s  /%s\n' "$code" "$path"
   [ "$code" = "200" ] || fail=1

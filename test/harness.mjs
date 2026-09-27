@@ -539,3 +539,44 @@ export async function waitFinalized(client, hash, { timeoutMs = 240_000, label =
   }
   return { finalized: false, seconds: (Date.now() - started) / 1000, status: "TIMEOUT" };
 }
+
+/**
+ * SMART REMAINDER HANDLING: one call, and the remainder arrives.
+ *
+ * `claim_remainder` is the only write in GrantJudge that reads the block clock
+ * AND posts a transfer, and on Studio Dev that combination cannot be
+ * fee-estimated (docs/PROBE.md §4b). The failure happens in fee ESTIMATION,
+ * before the contract runs, and the transaction that follows is rolled back
+ * whole — so no contract can catch it and route around it. The routing has to
+ * live where the failure is visible: here, in the client.
+ *
+ * It asks the contract which single step is next (`get_remainder_route`, which
+ * answers from storage alone) and takes it, until the answer is `done`:
+ *
+ *   book   → claim_remainder_fallback  (reads the clock, posts nothing)
+ *   sweep  → claim_payout              (posts the transfer, reads no clock)
+ *   wait   → the appeal window is open; nothing to do yet
+ *   done   → nothing of this round's remainder is left to move
+ *
+ * It never calls `claim_remainder` itself: on a network whose estimator runs a
+ * stale clock that is the door that fails, and a helper that tried it first
+ * would spend a transaction discovering what the probe already measured.
+ */
+export async function takeRemainder(client, reader, roundId, log = () => {}) {
+  const steps = [];
+  for (let i = 0; i < 4; i++) {
+    const route = await reader.view("get_remainder_route", [roundId, client.account.address]);
+    if (!route?.found) return { ok: false, steps, route };
+    if (route.step === "done") return { ok: true, steps, route };
+    if (route.step === "wait") return { ok: false, steps, route };
+    const method = route.step === "book" ? "claim_remainder_fallback" : "claim_payout";
+    const out = await client.send(method, route.step === "book" ? [roundId] : []);
+    const json = returnedJson(out);
+    steps.push({ step: route.step, method, status: json?.status ?? out.status,
+                 wei: json?.credited_wei ?? json?.paid_wei ?? "0" });
+    log(`${method} → ${json?.status ?? out.status}`);
+    if (json?.status !== "OK") return { ok: false, steps, route };
+  }
+  const route = await reader.view("get_remainder_route", [roundId, client.account.address]);
+  return { ok: route?.step === "done", steps, route };
+}

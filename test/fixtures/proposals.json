@@ -65,5 +65,24 @@
     "description": "We would like to run a series of in-person workshops introducing intelligent contracts to developers who have never written one, starting in three cities and expanding if the first three go well. Each workshop would be a full day: a morning of concepts and an afternoon where every attendee deploys something of their own. We would record the sessions and publish them so that the material outlives the events themselves. We have run developer workshops before and we know how much of the work is in the preparation rather than the day itself, so most of the budget is materials and rehearsal rather than travel. The plan is to run the first three within 4 months and report back with attendance and follow-on activity before asking for anything further.",
     "timeline": "Three workshops in 4 months, with recordings published within 2 weeks of each.",
     "team": "Two organisers who have run developer workshops in four cities over the last 3 years."
+  },
+
+  "_milestones": {
+    "typegen": [
+      {
+        "description": "MVP: a working type generator emitting typed bindings for real contracts",
+        "percentage": 60,
+        "proof_format": "release notes, figures, demo"
+      },
+      {
+        "description": "Final: published package with documentation, examples and adoption",
+        "percentage": 40,
+        "proof_format": "package version, docs, usage figures"
+      }
+    ],
+    "typegen_proofs": [
+      "MVP deliverable shipped in week 6, on 12 October: the type generator is working and emits typed bindings for 14 real contracts on studio devnet, including GrantJudge itself with 23 public methods and 6 storage structs, so the MVP milestone is met as written. The release v0.3.0 is tagged with release notes; the demo recording is 9 minutes and shows typed bindings generated in under 2 seconds per contract. Adoption started early: 11 developers from the community tested the generator in the first week and filed 7 issues, 5 already fixed. Budget so far: 0.6 GEN of engineering salary and 0.1 GEN of hosting and infra cost, in line with the breakdown in the proposal. Our team has maintained open source tooling for 6 years and built the previous typegen for another chain. The main risk, runner version drift, is mitigated by pinning the runner hash in the generator config, with a fallback to the last known good version if a pinned runner is ever withdrawn.",
+      "Final deliverable shipped in week 12, on 30 November: the package is published as genlayer-typegen 1.0.0 with full documentation, 6 worked examples and a migration guide, so the final milestone is met as written. Adoption: 41 developers and 9 projects in the ecosystem use the published package, 3 of them in production, with 1,200 weekly downloads, and a community workshop onboarded 25 more developers. The final budget closed at 1.9 GEN against the 2 GEN requested: 1.5 GEN salary, 0.2 GEN hosting and 0.2 GEN for an external audit of the code generator. The package is maintained by the same two engineers who shipped the MVP. The remaining risk, SDK changes, is mitigated by a compatibility test suite of 180 cases that runs on every runner release, with a documented fallback to the previous major version."
+    ]
   }
 }

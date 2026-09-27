@@ -133,8 +133,13 @@ for (const r of settled) {
       `round ${r.round.round_id}: awards + remainder = pool, exactly`,
       `${gen(allocated)} + ${gen(remainder - forfeited)} = ${gen(pool)} GEN`);
   }
+  // Owed-minus-paid, plus any award still HELD against undelivered milestones:
+  // on a milestone round both are locked against the round and both are
+  // somebody's. On a plain round `paid_wei` is all-or-nothing and nothing is
+  // held, so this is exactly the old sum.
   const unclaimed = (r.proposals ?? []).reduce(
-    (sum, p) => sum + (p.payout_claimed ? 0n : BigInt(p.payout_wei)), 0n);
+    (sum, p) => sum + BigInt(p.claimable_wei ?? (p.payout_claimed ? "0" : p.payout_wei))
+      + BigInt(p.milestone_held_wei ?? "0"), 0n);
   check(BigInt(r.round.locked_wei) === unclaimed + (claimedAway ? 0n : remainder),
     `round ${r.round.round_id}: everything still locked is somebody's to claim`,
     `${gen(r.round.locked_wei)} locked = ${gen(unclaimed)} unclaimed by proposers + ${gen(claimedAway ? 0n : remainder)} remainder`);
