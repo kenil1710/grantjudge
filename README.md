@@ -21,6 +21,7 @@ checksums in [`deployments.json`](deployments.json).
 |---|---|
 | **The idea** | [Where the line is](#where-the-line-is) · [The two people this is for](#the-two-people-this-is-for) |
 | **The mechanism** | [Scoring](#scoring) · [Settlement](#settlement) · [The appeal](#the-appeal) · [The twelve rules](#the-twelve-rules) |
+| **The milestone build** | [Pools, approvals, milestones, reputation, templates…](#the-milestone-build) · [what the seed shows](#what-the-milestone-seed-demonstrates) |
 | **The proof** | [docs/WORKED-EXAMPLE.md](docs/WORKED-EXAMPLE.md) · [docs/EVIDENCE.md](docs/EVIDENCE.md) · [docs/PROBE.md](docs/PROBE.md) |
 | **The code** | [Contract API](#contract-api) · [Composability](#composability--grantconsumer) · [contracts/NOTES.md](contracts/NOTES.md) |
 | **Running it** | [Repository](#repository) · `bash tools/verify.sh` |
@@ -239,6 +240,58 @@ every one is asserted as syntax by `tools/audit.py` and by `test/test_logic.py`.
 
 ---
 
+## The milestone build
+
+Ten features on top of the original round, and **every one of them is
+optional**. A round opened with `create_round` sets none of them and settles
+byte for byte as it always did: the original 682 offline tests still run
+against plain rounds and still pass, and the eight seeded outcomes were re-run
+on the new deployment. What follows is where each feature keeps the twelve
+rules — which is the part that was hard.
+
+**GenLayer does one new thing in this build:** it reads a *proof of delivery*
+against a *milestone as the treasurer wrote it*, and says whether the first
+demonstrates the second. **Deterministic code does everything else:** the
+pools, reserves and round sequencing, the verbatim gate, the approval
+majority and its lapse, the tranche arithmetic, every reputation figure, every
+analytics figure, and the remainder route.
+
+| # | feature | how it keeps the rules |
+|---|---|---|
+| 1 | **Multi-round pools** — `create_pool`, `top_up_pool`, `create_next_round`, `withdraw_reserve`, `get_pool_history` | One rubric for life, copied onto each round at creation (rule 4). The reserve is locked money like a pool, is promised to nobody, and `withdraw_reserve` returns it — so rule 7 holds for pools. A filing the pool already read is refused **before** the stake is taken (the novelty gate across rounds, `_text_key`). History totals are summed from the rounds on every read, never kept in a counter that could drift. |
+| 2 | **Delegated approval** — `approve_finalization`, `reject_finalization`, `get_approvals` | A strict majority (1/1, 2/2, 2/3). Approvers sign off on a ranking that is already determined — every proposal must be scored first — and cannot touch a criterion, a score or a seat. The signature that makes the majority ranks the round in the same transaction. **Rule 6 applied to people the treasurer names:** if they never sign, the requirement lapses after the pool's approval window and `finalize` is permissionless again, so an approver's silence cannot freeze anybody's deposit. |
+| 3 | **Milestone release** — `submit_milestone_proof`, `reclaim_lapsed_milestones`, `get_milestone_status` | The award is fixed at ranking and **held**; each proof is judged by `_consensus` with the same `_coherent` / `_agrees` gates and the same bracket system (the milestone becomes a one-line rubric, the proof becomes the filing). The last tranche takes what the floors left, so tranches sum to the award exactly. **The proof URL is a citation, never fetched** — see below. A tranche never delivered returns to the treasurer after the delivery window (rule 7). Released tranches are never clawed back. |
+| 4 | **Proposer reputation** — `get_proposer_stats`, pool option `min_reputation` | **Computed from the wallet's own proposals on every read.** There is no reputation field in storage, so there is no setter and nothing to forge. A floor of zero admits a wallet the chain has never seen. |
+| 5 | **Criteria templates** — `create_template`, `get_templates`, `get_template`, `create_round_from_template` | Validated exactly as a rubric is; stored in the same flat criteria array; immutable (only `create_template` assigns a template field — walked as syntax offline). A template door may open the next round of an existing pool only if the pool's rubric **is** the template's, hash for hash. |
+| 6 | **Round analytics** — `get_round_analytics` | Per-criterion mean, min, max and standard deviation, the band distribution, the funding rate and the appeal success rate — a pure function (`_analytics`) over stored scores, in integer hundredths and basis points, with no float and no consensus. |
+| 7 | **Batch evaluation** — `evaluate_all` | Up to three proposals per call, **each its own consensus round** and its own stored vector. A batch whose validators disagree on one proposal writes nothing for any of them — the stated cost of batching inside one transaction; an unreachable scorer only makes that one INCONCLUSIVE. It does not queue child transactions, because a contract message to itself is funded from the same message-fee pool whose estimate is broken on Studio Dev. |
+| 8 | **Proposal amendments** — `amend_proposal` | One, by the author, before the deadline. Stored beside the filing, which is never rewritten; shown to the validators in its own delimited block; part of both hashes. Reduced to its **novel** sentences first (`_novel`, the appeal's guard), so repeating the filing cannot raise its depth and move both ends of every bracket. |
+| 9 | **Round extensions** — `extend_deadline` | Treasurer only, while the round is open and not full, at most twice, at most seven days each. Nothing else moves; `config_hash` keeps committing to `original_deadline`, which is published beside the new one. |
+| 10 | **Smart remainder handling** — `get_remainder_route` + the client's `takeRemainder` | One click and the remainder arrives. See below for why this lives in the client. |
+
+### Two places this build does not do what the brief literally said, and why
+
+**The milestone proof URL is not fetched.** The original brief's first rule
+was *no URL fetching — all evidence is text on chain, no mutable content, no
+archive issues*, and that rule still applies. A page behind a link can serve
+two validators two different things in the same minute, which puts a third
+party's server on the consensus axis; and it can be gone before anybody audits
+the verdict. So `submit_milestone_proof(round_id, proposal_id, milestone_idx,
+proof_url, proof_text)` takes the URL as a **citation** — stored, shown to the
+validators, committed to in the content hash — and judges `proof_text`, which
+stays on chain beside the verdict.
+
+**The remainder is not rerouted by the contract.** `claim_remainder` fails on
+Studio Dev in fee *estimation* — before the contract runs — and the
+transaction that follows is rolled back whole ([`docs/PROBE.md` §4b](docs/PROBE.md)).
+No contract code can observe that failure, let alone route around it. So the
+routing lives where the failure is visible: `get_remainder_route` answers from
+storage which single step is next (`book` → `claim_remainder_fallback`,
+`sweep` → `claim_payout`, `wait`, `done`), and the app's one button and
+`takeRemainder` in `test/harness.mjs` follow it to the end. One click, two
+fee-estimable transactions, and `claim_remainder` is never tried on a network
+where it is the door that fails.
+
 ## Contract API
 
 ### Writes
@@ -256,7 +309,19 @@ every one is asserted as syntax by `tools/audit.py` and by `test/test_logic.py`.
 | `claim_remainder_fallback(round_id)` | the treasurer | The same claim, the same gate, the same books — but it posts no transfer, crediting the remainder for `claim_payout` to sweep. Two fee-estimable transactions in place of one that is not. |
 | `settle_stalled(round_id, proposal_id)` | anyone | Marks a proposal the network could not score as SKIPPED and returns its deposit. **Works while paused.** |
 | `claim_payout()` | anyone | Sweeps refunds, a cancelled pool and returned stakes. |
-| `set_paused(paused)` | the owner | Stops *new* rounds and *new* proposals. Nothing else. |
+| `create_pool(name, description, criteria_json, max_proposals, max_winners, min_score_threshold, deadline_seconds, options_json)` *payable* | anyone | Opens a multi-round pool and its first round. `options_json` (all optional): `co_approvers`, `approval_window_s`, `milestones`, `milestone_window_s`, `min_reputation`. |
+| `top_up_pool(pool_id)` *payable* | the treasurer | Adds to the pool's reserve — never to a live round. |
+| `create_next_round(pool_id)` *payable* | the treasurer | Opens the next round under the same rubric from the whole reserve (plus any value sent), once the latest round is ranked. |
+| `withdraw_reserve(pool_id)` | the treasurer | Credits the unspent reserve back for `claim_payout`. |
+| `create_template(name, criteria_json)` | anyone | Saves an immutable, public rubric. |
+| `create_round_from_template(pool_id, template_id, name, description, max_proposals, max_winners, min_score_threshold, deadline_seconds, options_json)` *payable* | anyone / the treasurer | `pool_id` 0 opens a new pool with the template's rubric; a pool whose rubric is the template's opens its next round. |
+| `approve_finalization(round_id)` / `reject_finalization(round_id)` | a co-approver | Signs off on (or objects to) a fully scored round. The majority-making signature ranks it. Bounded by the approval window. |
+| `submit_milestone_proof(round_id, proposal_id, milestone_idx, proof_url, proof_text)` | the author | One consensus round over a proof of delivery; a pass releases that milestone's tranche into `claim_award`. `milestone_idx` counts from 0; in order. |
+| `reclaim_lapsed_milestones(round_id, proposal_id)` | anyone | After the delivery window, or three failed proofs, returns the undelivered tranches to the treasurer. |
+| `evaluate_all(round_id)` | anyone | Up to three unscored proposals, one consensus round each, one call. Returns `evaluated_count` and `remaining_count`. |
+| `amend_proposal(round_id, proposal_id, amendment_text)` | the author | One amendment, ≤ 1000 chars, before the deadline, stored beside the filing. |
+| `extend_deadline(round_id, additional_seconds)` | the treasurer | ≤ 7 days, ≤ 2 times, only while open and not full. |
+| `set_paused(paused)` | the owner | Stops *new* rounds, *new* pools and *new* proposals. Nothing else. |
 | `transfer_ownership(new_owner)` | the owner | Hands over the pause switch. There is nothing else to hand over. |
 
 ### Views
@@ -280,6 +345,14 @@ every one is asserted as syntax by `tools/audit.py` and by `test/test_logic.py`.
 | `is_funded(round_id, proposal_id)` | The composability primitive. True only for a proposal a finalised round actually awarded money to. |
 | `get_award(round_id, proposal_id)` | What a proposal was awarded, degrading to a reason rather than refusing. |
 | `check_funded(round_id, proposal_id, min_score, max_age_seconds)` | The integration gate as a verdict: `{ok, reason, …}` against the caller's own floor and staleness limit. |
+| `get_pool(pool_id)` / `get_pools(offset, count)` | A pool's rubric, options, reserve and round pointers. |
+| `get_pool_history(pool_id)` | Every round of a pool with its stats, and `total_rounds`, `total_proposals`, `total_funded`, `total_distributed` summed from them. |
+| `get_approvals(round_id)` | Who approved, who objected, who has not voted, and when the requirement lapses. |
+| `get_milestone_status(round_id, proposal_id)` | Each milestone's tranche, status, attempts, score and reason, and what is held, released and lapsed. |
+| `get_proposer_stats(address)` | `rounds_entered`, `proposals_funded`, `total_awarded`, `average_score`, `contests_won`, `contests_lost` — derived on read. |
+| `get_templates()` / `get_template(template_id)` | Saved rubrics, and the pools opened from one. |
+| `get_round_analytics(round_id)` | Per-criterion mean/min/max/stddev, the band distribution, funding rate and appeal success — from stored scores. |
+| `get_remainder_route(round_id, address)` | The single next step to get a remainder out: `book`, `sweep`, `wait` or `done`. |
 
 ---
 
@@ -312,10 +385,11 @@ refund it from. Both halves of that argument are the same argument.
 contracts/GrantJudge.py      the contract — every rule documented where it lives
 contracts/GrantConsumer.py   the composability example, custody: false
 contracts/NOTES.md           design notes and the hazards that shaped them
-test/test_logic.py           682 offline tests — no chain, no network, no model
+test/test_logic.py           915 offline tests — no chain, no network, no model
 test/harness.mjs             shared integration helpers
 test/deploy.mjs              deploys both instances and the consumer
 test/seed.mjs                drives the whole lifecycle on chain and asserts it
+test/seed_milestone.mjs      drives pools, approvals, milestones, reputation, templates on chain
 test/collect.mjs             derives docs/seed-evidence.json by READING the chain
 test/verify_onchain.mjs      reads the deployed source back and diffs it against the repo
 test/topup.mjs               repairs a run that lost a write to the network
@@ -338,6 +412,8 @@ docs/EVIDENCE.md             what the seed run actually did, generated not typed
 docs/ARTICLE.md              the write-up
 docs/seed-run.log            the raw log of the seed run, failures and all
 docs/seed-evidence.json      the machine-readable form
+docs/milestone-run.log       the raw log of the milestone seed
+docs/milestone-evidence.json what the milestone seed read back off the chain
 ```
 
 ### Running it
@@ -352,6 +428,7 @@ cd test && npm install
 node accounts.mjs                 # a stable pool of signing keys
 node deploy.mjs --both            # both instances + the consumer
 node seed.mjs --canonical         # the whole lifecycle, on chain, asserted
+node seed_milestone.mjs           # the milestone build, on its own wallets
 
 cd .. && python3 tools/evidence.py   # renders docs/EVIDENCE.md from that run
 
@@ -394,20 +471,43 @@ the record, and this is a reader of it. An evidence document whose numbers were
 copied by a person keeps looking healthy after the contract stops agreeing with
 it.
 
-> **Why `docs/seed-run.log` ends in four failures and `docs/EVIDENCE.md` says
-> 21/21.** They describe two different moments, and both are true.
+> **This deployment's runs, and the one failure in them.** `docs/seed-run.log`
+> is the original eight-outcome seed on the new bytes: **every check passed**,
+> remainders taken by the two-step path. `docs/EVIDENCE.md` is `collect.mjs`
+> reading the chain afterwards — **30/30**, now including the milestone
+> build's rounds.
 >
-> The seed run that produced the log still called `claim_remainder` — the
-> one-transaction form — and it failed on rounds 1 and 4 exactly as
-> [`docs/PROBE.md` §4b](docs/PROBE.md) predicts, stranding 0.2 and 0.8 GEN.
-> Round 2 passed only because its remainder was zero, so no transfer was ever
-> posted: a settlement path that works only when there is no money to move.
->
-> `test/seed.mjs` and `test/settle.mjs` now take the two-step path
-> (`claim_remainder_fallback`, then `claim_payout`), the two stranded
-> remainders were taken that way, and `test/collect.mjs` re-read the chain
-> afterwards. EVIDENCE.md is that read. The log is not rewritten to match it —
-> a log edited to agree with a later outcome is not a log.
+> `docs/milestone-run.log` records **one FAIL**: pool A's second round (round
+> 10) "did not drain", with 2.1 GEN still locked. The contract was right — that
+> was the funded proposer's award and deposit, unclaimed, because the seed
+> matched wallets to proposals by comparing a lowercased address with the
+> checksummed one the chain returns, found no wallet, and skipped the claim.
+> The seed is fixed (both sides lowercased), the proposer claimed, round 10
+> reached exactly zero, and EVIDENCE.md is the read taken after that. The same
+> log also says "batch did not settle" three times: each of those
+> `evaluate_all` calls **did** settle — all its proposals share one
+> `evaluated_at` and `batches` counts them — but the SDK could not render the
+> nested `results` list, and the first version of the script took an
+> unreadable return value for a failure. Neither log is rewritten to match
+> what came after — a log edited to agree with a later outcome is not a log.
+
+## What the milestone seed demonstrates
+
+`node test/seed_milestone.mjs` runs on wallets of its own, beside `seed.mjs`,
+on the demo instance — and like it, reads every figure back and checks it.
+
+| | |
+|---|---|
+| **POOL A · Ecosystem Growth v2** | round 1 evaluated with `evaluate_all` and ranked; an amendment read with its filing and verified; `top_up_pool` + `create_next_round` open round 2 under the identical rubric hash; a round-1 filing resubmitted verbatim is **refused**; `get_pool_history` shows both rounds |
+| **POOL B · Security Audit Fund** | two co-approvers: `finalize` is refused, the first approval is not enough, the second **ranks the round in the same transaction** |
+| **POOL C · Dev Tools Grant** | a 60 / 40 schedule: the whole award held at ranking, each proof judged by consensus and its tranche released and claimed; the tranches sum to the award exactly |
+| **POOL D · Community Fund** | `min_reputation` 1: a proposer pool A funded is admitted, a wallet with no record is refused and refunded |
+| **POOL E · from a template** | "Standard Ecosystem" saved with pool A's exact rubric hash, a pool opened from it, its deadline extended once |
+| **ANALYTICS** | `get_round_analytics` on the busiest round |
+| **REMAINDERS** | every one taken by `takeRemainder` — one call per round, each round drained to exactly zero |
+
+Its log and evidence are in [`docs/milestone-run.log`](docs/milestone-run.log)
+and [`docs/milestone-evidence.json`](docs/milestone-evidence.json).
 
 ---
 
@@ -432,9 +532,9 @@ To prove the **chain** holds those bytes, read the source back off it:
 
 ```bash
 node test/verify_onchain.mjs
-#   ok   GrantJudge      chain 196992 bytes 6dd38d1718b54125… | identical true
-#   ok   GrantJudgeDemo  chain 196992 bytes 6dd38d1718b54125… | identical true
-#   ok   GrantConsumer   chain  16610 bytes 71fe8e18a7ba01d6… | identical true
+#   ok   GrantJudge      chain 310570 bytes 9fc100c70de9f838… | identical true
+#   ok   GrantJudgeDemo  chain 310570 bytes 9fc100c70de9f838… | identical true
+#   ok   GrantConsumer   chain  19666 bytes c5d33005268a26c7… | identical true
 ```
 
 `eth_getCode` answers `0x` for a GenVM contract; the source lives behind

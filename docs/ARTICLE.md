@@ -427,11 +427,231 @@ because you never mention what anything costs" is a fix.
   and the adjectival one does not move at all.
 - **Source:** <https://github.com/kenil1710/grantjudge>
 
-682 offline tests — including a hundred and twenty randomised lifecycles that
-each have to drain to exactly zero — and a cross-file audit that re-derives
-every number the repository quotes about itself. Two deployed instances of the
-same source: one enforcing the brief exactly, one with the windows in minutes so
-a whole round can be watched end to end.
+915 offline tests — including a hundred and twenty randomised lifecycles and
+forty randomised multi-round pools that each have to drain to exactly zero —
+and a cross-file audit that re-derives every number the repository quotes about
+itself. Two deployed instances of the same source: one enforcing the brief
+exactly, one with the windows in minutes so a whole round can be watched end to
+end.
+
+
+---
+
+# Part two — the milestone build
+
+*Ten features on top of the first version, and the two places where doing what
+the brief literally said would have broken a rule the brief started with.*
+
+*The numbers in part one come from the previous deployment's run, and are left
+as they were. Everything below comes from the redeployment that carries this
+build, read back off the chain.*
+
+---
+
+## A grant is not a single decision
+
+The first version of GrantJudge treated a grant round as one event: a pool, a
+deadline, a ranking, a payout. Real treasuries do not work like that. They run
+the same programme quarter after quarter. They want a second pair of eyes
+before money leaves. They pay against delivery, not against a pitch. They
+remember who delivered last time.
+
+So the milestone build adds: multi-round **pools**, **co-approvers**,
+**milestone release**, proposer **reputation**, criteria **templates**, round
+**analytics**, **batch evaluation**, proposal **amendments**, deadline
+**extensions**, and a **one-click remainder**.
+
+Every one of them is optional. A round opened the old way sets none of them and
+settles byte for byte as it did — the original 682 offline tests still run
+against plain rounds and still pass, and the eight original outcomes were
+re-seeded on the new bytes and every check passed again.
+
+The line did not move either:
+
+> **GenLayer does one new thing:** it reads a *proof of delivery* against a
+> *milestone as the treasurer wrote it*. **Deterministic code does everything
+> else** — pools and reserves, the approval majority and its lapse, the tranche
+> arithmetic, every reputation and analytics figure, and the remainder route.
+
+---
+
+## The two places the brief was wrong
+
+### "Validators fetch the proof URL"
+
+The very first rule of this project was *no URL fetching: all evidence is text
+on chain, no mutable content, no archive issues.* A milestone proof is exactly
+where that rule earns its keep. A page behind a link can serve two validators
+two different things in the same minute — which puts whoever runs that server
+on the consensus axis — and it can be gone before anybody audits the verdict.
+
+So the URL is a **citation**. It is stored, it is shown to the validators with
+the words *"not fetched, shown for reference only"*, and it is committed to in
+the content hash. What is judged is the **proof text**, which stays on chain
+beside the verdict. A link with nothing on the page behind it earns what an
+empty page earns.
+
+### "If claim_remainder fails, the contract auto-routes to the fallback"
+
+`claim_remainder` fails on Studio Dev in fee *estimation*, before the contract
+runs, and the transaction that follows is rolled back whole. No contract code
+can see that failure, so no contract code can route around it.
+
+What the contract *can* do is make the client trivial. `get_remainder_route`
+answers, from storage alone, which single step is next — `book`, `sweep`,
+`wait` or `done` — and the app's one button follows it to the end:
+`claim_remainder_fallback`, then `claim_payout`. One click, two
+fee-estimable transactions, and the door that fails is never tried.
+
+---
+
+## Milestones use the same machinery, literally
+
+"Validators verify the proof using the same bracket system as proposals" could
+have meant a second scoring path. It does not. A milestone becomes a one-line
+rubric — its description is the criterion — and a proof becomes the filing.
+Then `_reading`, `_derive`, `_coherent`, `_agrees` and `_consensus` run
+unchanged.
+
+That buys two properties for free. A proof that never mentions what the
+milestone asked for caps at two out of seven, below the 4.00 delivery bar, and
+no leader or model can lift it. And a proof like *"good progress, more soon"*
+has nothing in it to have an opinion about, so its bracket is pinned at zero
+and **no model is called at all**.
+
+On chain, a 2 GEN award for a type generator, split 60 / 40:
+
+```
+ranking     typegen FUNDED   2.000000 GEN held, 0.100000 GEN deposit claimable now
+proof 1     MVP: typed bindings for 14 real contracts      5.20 / 7.00  → 1.200000 GEN released
+proof 2     Final: published package, 41 developers         5.20 / 7.00  → 0.800000 GEN released
+            tranches sum to the award exactly: 2.000000 of 2.000000 GEN
+```
+
+The award is fixed at ranking. A milestone decides *when* it leaves and
+*whether* it does — never *how much*. And held money needs a way out: after
+the delivery window, or three failed proofs of the next milestone, anyone may
+return the undelivered part to the treasurer. Without that door, rule 7 —
+every GEN that enters can come back out — would be false for exactly the rounds
+that used the feature.
+
+---
+
+## Co-approvers are a freeze vector unless they lapse
+
+Rule 6 says the owner cannot freeze user money. Co-approvers are not the owner,
+which is why the rule had to be said again for them: two approvers who simply
+never sign would hold every deposit and every award in the round for ever.
+
+So they sign off on a ranking that is already decided — every proposal must be
+scored first, and they cannot touch a criterion, a score or a seat — and the
+requirement **lapses** after the pool's approval window. An objection is
+counted and shown; it is not a veto.
+
+On chain, a Security Audit Fund with two co-approvers:
+
+```
+finalize                     REJECTED   needs 2 of its 2 co-approvers — or anyone may
+                                        finalize once the window lapses in 7287s
+approver 1  approve          OK         1 / 2, not finalized
+approver 2  approve          OK         2 / 2 — the round is ranked in this transaction
+                                        2 funded, 490:428 → 1.6013 : 1.3986 GEN
+```
+
+---
+
+## Pools, and a gate that runs before the stake
+
+A pool runs one rubric for life. The treasurer tops up a reserve and opens the
+next round from it; round two of "Ecosystem Growth v2" carries round one's
+rubric hash `8111b1d5a55c9dae`, character for character.
+
+A filing the pool has already read is refused — any round, any wallet — before
+the deposit is taken:
+
+```
+pbuilder1  submit_proposal  REJECTED  this proposal repeats proposal #10 word for word,
+                                      which pool #1 has already read under the same rubric
+```
+
+The match survives re-spacing and re-casing. It is a novelty test, not a
+substance test: a proposal rewritten in new words is new, and is read on its
+merits. The same honest limit the appeal's guard has.
+
+Across both rounds the pool's history reads 5 proposals, 3 funded and
+5.937 GEN distributed — summed from the rounds on every read rather than kept
+in a counter that could drift from them.
+
+---
+
+## Reputation that nobody can set
+
+A stored reputation needs a writer, a writer is a setter, and a setter is a
+lever. So there is no reputation field anywhere in storage. It is recomputed
+from the wallet's own proposals on every read, and the audit fails if a field
+by that name ever appears.
+
+A Community Fund with a floor of one funded proposal:
+
+```
+pbuilder1  record: entered 2, funded 2, awarded 4.737 GEN, average 4.95  → admitted
+newcomer   record: nothing                                               → refused, deposit refunded
+```
+
+---
+
+## Batching consensus, which you cannot do
+
+"Evaluate everything with one call" is really "press the button N times for
+me", because consensus cannot be batched. `evaluate_all` runs up to three
+readings inside one transaction, each its own `_consensus` round with its own
+stored vector — and says what that costs: if the validators disagree about one
+proposal, the transaction writes nothing for any of them.
+
+It did not come to that. Pool A's three proposals were scored in **one
+55-second transaction** — the three share one `evaluated_at`, one attempt each,
+each with its own model call. Pools B, C and A's second round took one call
+each.
+
+The first version of the seed script logged those calls as *"batch did not
+settle"*. They had settled. The SDK could not render the nested results list,
+and the script took an unreadable return value for a failure. The log is left
+as it was; the script now asks the chain.
+
+---
+
+## The one check that failed
+
+The milestone seed ended `1 CHECK(S) FAILED`: pool A's second round still held
+2.1 GEN. The contract was right — that was the funded proposer's award and
+deposit, never claimed, because the script matched wallets to proposals by
+comparing a lowercased address against the checksummed one the chain returns.
+It found nobody, skipped the claim, and then correctly reported the round as
+not drained. The proposer claimed, the round reached exactly zero, and the
+evidence document is the read taken afterwards: **30 of 30 checks**, every
+finished round at zero locked, and all 17 stored evaluations re-deriving from
+storage — the amended proposal included.
+
+Not for the first time in this project, the bug was in the script watching
+the contract rather than in the contract. The lesson from part one still holds:
+a script's memory is not evidence, and a check that can fail is worth more than
+one that cannot.
+
+---
+
+## What it adds up to
+
+915 offline tests, 233 of them new — including forty randomised multi-round
+pools with random approvers, milestones that pass, fail and lapse, and
+reserves spent or withdrawn, every one of which has to reach exactly zero. An
+audit that walks the source to prove the new promises: no reputation field, no
+template writer but one, no network call, co-approvers wired to a lapse, a
+verbatim gate that runs before the stake.
+
+A treasury can now run a programme rather than a round, ask for a second
+signature without handing anybody a veto over other people's deposits, and pay
+against delivery without trusting a URL. The judgement is still the one thing
+GenLayer is asked for. Everything else is still arithmetic.
 
 ---
 
