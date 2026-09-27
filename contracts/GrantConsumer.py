@@ -131,6 +131,11 @@ class IGrantJudge:
 
         def get_stats(self) -> typing.Any: ...
 
+        def get_milestone_status(self, round_id: typing.Any,
+                                 proposal_id: typing.Any) -> typing.Any: ...
+
+        def get_proposer_stats(self, address: str) -> typing.Any: ...
+
     class Write:
         pass
 
@@ -336,6 +341,59 @@ class GrantConsumer(gl.contract.Contract):
             "min_score_text": _score_text(int(self.min_score)),
             "max_age_seconds": int(self.max_age_seconds),
         }
+
+    @gl.public.view
+    def grant_progress(self, round_id: typing.Any,
+                       proposal_id: typing.Any) -> typing.Any:
+        """How much of a grant has actually been DELIVERED, read from the
+        judge's milestone record.
+
+        A grant from a round with milestones is FUNDED - and registrable - the
+        moment it is ranked, because that is when the judge commits the award.
+        Whether the work behind it has shipped is a different question, and a
+        DAO that wants to recognise delivery rather than promise gates on
+        `delivered_bps` here. A grant from a plain round is paid in full at
+        ranking and reads as fully delivered, which is what the judge's own
+        books say. Non-reverting."""
+        try:
+            status = self._judge().view().get_milestone_status(round_id,
+                                                               proposal_id)
+        except Exception as e:
+            return {"found": False,
+                    "reason": "the judge could not be read: " + _short(e)}
+        if not isinstance(status, dict) or not status.get("found"):
+            return {"found": False,
+                    "reason": str(status.get("reason", "not found"))
+                    if isinstance(status, dict) else "not found"}
+        award = _as_int(status.get("award_wei"), 0)
+        released = _as_int(status.get("released_wei"), 0)
+        milestones = bool(status.get("has_milestones"))
+        if not milestones:
+            delivered = 10000 if award > 0 else 0
+        else:
+            delivered = (released * 10000) // award if award > 0 else 0
+        return {"found": True, "round_id": _as_int(round_id, 0),
+                "proposal_id": _as_int(proposal_id, 0),
+                "has_milestones": milestones,
+                "award_wei": str(award), "released_wei": str(released),
+                "held_wei": str(_as_int(status.get("held_wei"), 0)),
+                "lapsed_wei": str(_as_int(status.get("lapsed_wei"), 0)),
+                "milestones_passed": _as_int(status.get("passed"), 0),
+                "delivered_bps": _clamp(delivered, 0, 10000)}
+
+    @gl.public.view
+    def grantee_reputation(self, address: str) -> typing.Any:
+        """The judge's record of a proposer, passed straight through. The
+        consumer adds nothing to it and stores none of it - reputation is the
+        judge's derived view of its own history, and a copy here would be a
+        second number that could disagree with the first."""
+        if not _is_addr(address):
+            return {"found": False, "reason": "not a 20-byte hex address"}
+        try:
+            return self._judge().view().get_proposer_stats(str(address).strip())
+        except Exception as e:
+            return {"found": False,
+                    "reason": "the judge could not be read: " + _short(e)}
 
     @gl.public.view
     def get_grant(self, index: typing.Any) -> typing.Any:

@@ -144,13 +144,23 @@ def main() -> int:
             sources.add(node.func.value.id)
     check(sources <= {"derived"},
           f"_record reads only the re-derived record {sorted(sources)}")
-    evaluate = next(m for m in judge_methods if m.name == "evaluate")
-    after_consensus = ast.unparse(evaluate).split("run_nondet")[-1]
-    check("_derive(task, out.get" in after_consensus,
-          "evaluate re-derives the record from the two agreed fields")
-    check(after_consensus.count("out.get") <= 4,
-          "evaluate reads at most the agreed scores, quality, retry and why "
-          "from the leader's payload")
+    # Every consensus path re-derives from the two agreed fields, and reads at
+    # most scores, quality, retry and why out of the agreed payload.
+    for name in ("_run_evaluation", "contest", "submit_milestone_proof"):
+        body = ast.unparse(next(m for m in judge_methods if m.name == name))
+        after_consensus = body.split("_consensus(task)")[-1]
+        check("_derive(task, out.get" in after_consensus,
+              f"{name} re-derives the record from the two agreed fields")
+        check(after_consensus.count("out.get") <= 4,
+              f"{name} reads at most the agreed scores, quality, retry and why "
+              "from the leader's payload")
+    runners = sorted({n.name for n in ast.walk(tree)
+                      if isinstance(n, ast.FunctionDef)
+                      for sub in ast.walk(n)
+                      if isinstance(sub, ast.Call)
+                      and ast.unparse(sub.func) == "gl.vm.run_nondet"})
+    check(runners == ["_consensus"],
+          f"exactly one function calls run_nondet {runners}")
 
     section("2 · the leader cannot forge a score")
     coherent = next(n for n in ast.walk(tree)
@@ -177,12 +187,19 @@ def main() -> int:
                 FAILURES.append(f"{m.name} assigns the immutable {sub.attr}")
     check(not [f for f in FAILURES if "assigns the immutable" in f],
           "no method other than __init__ assigns a config field")
-    create = next(m for m in judge_methods if m.name == "create_round")
+    # Every opening path - create_round, create_pool, create_next_round and
+    # the template door - ends in `_write_round`, which is where the snapshot
+    # is taken.
+    create = next(m for m in judge_methods if m.name == "_write_round")
     create_text = ast.unparse(create)
     for field in ("spam_stake_wei", "contest_stake_wei", "contest_window_s",
-                  "stall_ttl_s"):
+                  "stall_ttl_s", "approvers_csv", "approvals_needed",
+                  "milestone_start", "milestone_count", "min_reputation"):
         check(f"rnd.{field}" in create_text,
-              f"create_round snapshots {field} onto the round")
+              f"_write_round snapshots {field} onto the round")
+    for opener in ("create_round", "_open_pool", "_next_round"):
+        body = ast.unparse(next(m for m in judge_methods if m.name == opener))
+        check("self._write_round(" in body, f"{opener} opens through _write_round")
 
     section("4 · no public write raises, and every refusal refunds")
     raises = [n.lineno for n in ast.walk(tree) if isinstance(n, ast.Raise)]
@@ -238,10 +255,13 @@ def main() -> int:
           "_live_round refuses a terminal round")
 
     section("7 · the owner cannot freeze user money")
-    must_be_open = ("evaluate", "finalize", "contest", "settle_stalled",
-                    "claim_award", "claim_remainder",
+    must_be_open = ("evaluate", "evaluate_all", "finalize", "contest",
+                    "settle_stalled", "claim_award", "claim_remainder",
                     "claim_remainder_fallback", "claim_payout",
-                    "cancel_round")
+                    "cancel_round", "approve_finalization",
+                    "reject_finalization", "submit_milestone_proof",
+                    "reclaim_lapsed_milestones", "withdraw_reserve",
+                    "top_up_pool", "amend_proposal", "extend_deadline")
     gated = set()
     for m in writes:
         for sub in ast.walk(m):
@@ -249,8 +269,10 @@ def main() -> int:
                     and isinstance(sub.value, ast.Name) and sub.value.id == "self" \
                     and isinstance(sub.ctx, ast.Load):
                 gated.add(m.name)
-    check(gated == {"create_round", "submit_proposal"},
-          f"pause gates exactly create_round and submit_proposal {sorted(gated)}")
+    check(gated == {"create_round", "submit_proposal", "create_pool",
+                    "create_next_round", "create_round_from_template"},
+          "pause gates exactly the writes that open a round or file a "
+          f"proposal {sorted(gated)}")
     for name in must_be_open:
         check(name not in gated, f"{name} is open while paused")
     names = {m.name for m in judge_methods}
@@ -615,6 +637,68 @@ def main() -> int:
     check(not (band_in_header and band_in_agrees is False) or "Erratum" in notes,
           "the header/_agrees discrepancy about the band is recorded in NOTES.md")
     check("Erratum" in notes, "NOTES.md carries the erratum section")
+
+    section("26 · the milestone release cannot trap money or read the network")
+    check("gl.nondet.web" not in contract,
+          "a milestone proof URL is never fetched - no web call in the contract")
+    reclaim = next((m for m in writes if m.name == "reclaim_lapsed_milestones"),
+                   None)
+    check(reclaim is not None, "reclaim_lapsed_milestones exists")
+    if reclaim is not None:
+        body = ast.unparse(reclaim)
+        check("sender" not in body.split('"""')[-1].split("rnd, prop, error")[0],
+              "reclaim_lapsed_milestones is permissionless")
+        check("self._hand_over(rnd, rnd.treasurer" in body,
+              "a lapsed tranche goes to the treasurer through _hand_over")
+    proof = next(m for m in writes if m.name == "submit_milestone_proof")
+    proof_text = ast.unparse(proof)
+    check("_coherent(out, task)" in proof_text,
+          "a milestone reading is re-gated by _coherent after consensus")
+    check("record.score = " in proof_text and "derived.get('final_score')" in proof_text,
+          "a milestone record is written from the re-derived reading")
+    check("_tranche(" in proof_text, "a tranche is computed by the pure _tranche")
+
+    section("27 · co-approvers cannot freeze a round")
+    fin = ast.unparse(next(m for m in writes if m.name == "finalize"))
+    check("_approval_lapses_at" in fin,
+          "finalize stops waiting for co-approvers once the window lapses")
+    vote = ast.unparse(next(m for m in judge_methods if m.name == "_vote"))
+    check("_finalize_gate" in vote,
+          "an approval is only possible once every proposal is resolved")
+    for field in ("criteria", "scores_csv", "final_score", "min_score_threshold",
+                  "pool_wei"):
+        check(f".{field} =" not in vote, f"a vote cannot write {field}")
+
+    section("28 · reputation is derived, templates are immutable")
+    storage_fields = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ClassDef):
+            for sub in node.body:
+                if isinstance(sub, ast.AnnAssign) and isinstance(sub.target, ast.Name):
+                    storage_fields.add(sub.target.id)
+    check(not any("reputation" == f or f.startswith("reputation_")
+                  for f in storage_fields),
+          "no reputation field is stored anywhere - it is computed on read")
+    template_fields = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ClassDef) and node.name == "Template":
+            for sub in node.body:
+                if isinstance(sub, ast.AnnAssign) and isinstance(sub.target, ast.Name):
+                    template_fields.add(sub.target.id)
+    writers = set()
+    for m in judge_methods:
+        for sub in ast.walk(m):
+            if isinstance(sub, ast.Attribute) and isinstance(sub.ctx, ast.Store) \
+                    and isinstance(sub.value, ast.Name) and sub.value.id == "tpl" \
+                    and sub.attr in template_fields:
+                writers.add(m.name)
+    check(writers == {"create_template"},
+          f"only create_template writes a template {sorted(writers)}")
+    submit = ast.unparse(next(m for m in writes if m.name == "submit_proposal"))
+    check("pool_texts" in submit and "_text_key(text)" in submit,
+          "a pool refuses a verbatim resubmission before taking the stake")
+    check(submit.index("pool_texts.get") < submit.index("self._take(sender, stake)"),
+          "the verbatim gate runs before the stake is taken")
 
     section("25 · the documentation the README points at exists")
     for rel in ("contracts/NOTES.md", "docs/PROBE.md", "docs/ARTICLE.md",

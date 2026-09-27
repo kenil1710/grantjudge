@@ -327,3 +327,135 @@ The evidence document is now derived by READING the chain rather than by
 remembering what a script did, so a run that falls over near the end still
 produces an honest record of whatever actually landed. Three variations of one
 mistake were enough to make the point: **a script's memory is not evidence.**
+
+---
+
+## 12. The milestone build: ten features, and where each one could have broken a rule
+
+Everything below is optional. A round opened with `create_round` carries zero
+in every new field, and the original 682 offline tests still run against plain
+rounds and still pass — which is the first property the build had to keep, and
+the one a reviewer would check first.
+
+### A proof URL is a citation, not an input
+
+The brief for milestones said "validators fetch proof URL and verify". The brief
+for the project said, before anything else, *no URL fetching — all evidence is
+text on chain, no mutable content, no archive issues*. The second one wins, for
+reasons that are not taste:
+
+- **Two validators reading one URL can read two pages.** A page that changes
+  between the leader's fetch and a validator's puts a third party's server on
+  the consensus axis — `facts_hash` would differ, the round would not settle,
+  and whoever controls the server decides whether it ever does.
+- **A verdict has to survive the page.** `verify_evaluation` re-derives a
+  score years later from storage. A proof that lives on somebody's CDN cannot
+  be re-derived after the CDN forgets it.
+
+So `submit_milestone_proof` takes `proof_url` as a citation — stored, shown to
+the validators with an explicit "not fetched", committed to in both hashes via
+`subject` — and judges `proof_text`, which stays on chain. A link with nothing
+on the page behind it earns what an empty page earns: the bracket is computed
+from the text.
+
+### "The same bracket system" is literal
+
+`_milestone_facts` turns a milestone into a one-line rubric (its description is
+the criterion) and a proof into the filing, and then `_reading`, `_derive`,
+`_coherent`, `_agrees` and `_consensus` run unchanged. That is why a vague proof
+("good progress, more soon") is pinned at zero **with no model call at all**,
+and why a detailed one clears the 4.00 delivery bar even at the floor of its
+bracket. There is no second scoring path to get wrong.
+
+The `subject` field (`milestone:<index>:<url>`) is appended to both hashes only
+when present (`_optional_parts`), which does two jobs: a verdict on milestone
+one can never be replayed as a verdict on milestone two, and every existing
+proposal hash is byte-for-byte what it was — asserted offline against the old
+formula.
+
+### Held money needs a door out
+
+An award held against undelivered milestones is locked money with an owner who
+may never act. Without `reclaim_lapsed_milestones` it would sit in the round's
+`locked_wei` for ever, and rule 7 — every GEN that enters can come back out —
+would be false for exactly the rounds that used the new feature. The door opens
+after the pool's milestone window, or at once when the next milestone has
+failed three proofs, and it is permissionless for the reason `settle_stalled`
+is: the person with the most reason to call it is the one who is not the
+grantee.
+
+### Co-approvers are a freeze vector unless they lapse
+
+Rule 6 says the owner cannot freeze user money. Co-approvers are not the owner,
+which is exactly why the rule had to be restated for them: two approvers who
+simply never sign would hold every stake and every award in the round for ever,
+and "the treasurer chose them" is no comfort to a proposer who staked a deposit.
+So the requirement lapses after `deadline + stall_ttl + approval_window`, and
+the round records whether it was ranked on a sign-off or on a lapse. An
+objection is counted and shown; it is not a veto.
+
+Approvers vote on a ranking that is already determined — `_vote` calls
+`_finalize_gate`, which refuses while any proposal is unscored — so a sign-off
+is a human saying "I have read what the validators decided", not a vote on the
+outcome.
+
+### Reputation is not stored, on purpose
+
+A stored reputation needs a writer, and a writer is a setter, and a setter is a
+lever. `_reputation` recomputes from the wallet's own proposals on every read,
+and `tools/audit.py` fails if any storage field named `reputation` ever appears.
+The cost is one pass over the author's proposals in `submit_proposal` for rounds
+with a floor; rounds without one skip it.
+
+### The novelty gate across rounds, and its honest limit
+
+A pool refuses a filing it has already read — any round, any wallet — using
+`_text_key`: `_sentences`' comparison keys, hashed. It survives re-spacing,
+re-casing and re-punctuation. Like `_novel`, it is a novelty test and not a
+substance test: a proposal rewritten in new words is new by this measure and is
+read on its merits. It runs before the stake is taken, so a refusal costs
+nothing.
+
+### Amendments reuse the appeal's guard
+
+An amendment that repeated the filing would raise depth and move both ends of
+every bracket — exactly the score-by-arithmetic an appeal of repeated text used
+to get (section 4, `_novel`). So an amendment is reduced to its novel sentences
+before it is stored, and must add at least twenty characters. It is allowed
+only before the deadline, which is before any score exists to react to.
+
+### Batch evaluation does not queue, and says why
+
+`evaluate_all` runs up to three `_consensus` rounds inside one transaction.
+Each proposal is still its own reading and its own stored vector, but the
+transaction settles only if all of them do — that is the price, and the cap of
+three is how it is kept small. The literal alternative, a contract posting one
+`evaluate` message to itself per proposal, is funded from the same prefunded
+message-fee pool whose estimate is broken on Studio Dev (section 10, PROBE §4b),
+and a queue whose children silently never run is worse than a batch that
+visibly did not settle.
+
+### The remainder router lives in the client
+
+The ask was for the contract to catch `claim_remainder`'s failure and fall back.
+It cannot: the failure is in fee estimation, before the contract executes, and
+the transaction that follows is rolled back whole. What the contract CAN do is
+make the client trivial — `get_remainder_route` answers from storage which
+single step is next — and the app's one button and `takeRemainder` in
+`test/harness.mjs` follow it until it says `done`. `claim_remainder` is never
+tried, because on this network it is the door that fails.
+
+### The structural tests that had to change, and what they still protect
+
+Three offline tests pinned the old SHAPE rather than a property, and were
+updated to the new shape without losing the property:
+
+- `run_nondet` is called from exactly one function now (`_consensus`) rather
+  than from `evaluate` and `contest`; the property — one leader function, one
+  validator function, no `self` in either — is stronger, not weaker.
+- `paused` gates the five writes that open a round or file a proposal, not
+  two: `create_pool`, `create_next_round` and `create_round_from_template` open
+  rounds too. Every money path is still open while paused.
+- The "no setter for the round's terms" test now allows `_write_round` and
+  `_open_pool` (the creation sites) and exactly one later write:
+  `extend_deadline` moving `deadline`, forward only, while open, at most twice.

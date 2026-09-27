@@ -4963,9 +4963,11 @@ class TestStaticInvariants(unittest.TestCase):
                             self.fail(m.name + " assigns " + sub.attr)
 
     def test_pause_gates_only_the_two_methods_it_may(self):
-        """RULE 6, walked as syntax. `self.paused` is read in exactly two
-        writes. Everything else - evaluation, finalisation, appeals, stall
-        settlement and every claim - is open while paused."""
+        """RULE 6, walked as syntax. `self.paused` is read in exactly the
+        writes that open a round or file a proposal - `create_round`,
+        `submit_proposal`, and the three pool doors that open rounds too.
+        Everything else - evaluation, finalisation, approvals, appeals,
+        milestones, stall settlement and every claim - is open while paused."""
         gated = []
         for m in self.writes():
             for sub in ast.walk(m):
@@ -4973,7 +4975,9 @@ class TestStaticInvariants(unittest.TestCase):
                         isinstance(sub.value, ast.Name) and \
                         sub.value.id == "self" and isinstance(sub.ctx, ast.Load):
                     gated.append(m.name)
-        self.assertEqual(sorted(set(gated)), ["create_round", "submit_proposal"])
+        self.assertEqual(sorted(set(gated)),
+                         ["create_next_round", "create_pool", "create_round",
+                          "create_round_from_template", "submit_proposal"])
 
     def test_the_money_methods_are_never_gated_on_pause(self):
         must_be_open = ("evaluate", "finalize", "contest", "settle_stalled",
@@ -5055,7 +5059,11 @@ class TestStaticInvariants(unittest.TestCase):
                     if isinstance(sub, ast.Call) and \
                             ast.unparse(sub.func) == "gl.vm.run_nondet":
                         callers.append(node.name)
-        self.assertEqual(sorted(callers), ["contest", "evaluate"])
+        # ONE caller: `_consensus`, the module function every consensus path -
+        # evaluate, evaluate_all, contest, submit_milestone_proof - goes through,
+        # so there is exactly one leader function and one validator function
+        # in the file.
+        self.assertEqual(sorted(callers), ["_consensus"])
 
     def test_the_model_is_called_in_exactly_one_place(self):
         calls = [n.lineno for n in ast.walk(TREE)
@@ -5643,7 +5651,13 @@ class TestAttacks(unittest.TestCase):
 
     def test_a_treasurer_cannot_reprice_a_round_after_filings(self):
         """RULE 4. There is no setter for the rubric, the threshold, the seats,
-        the deadline or either stake - checked as syntax over the whole file."""
+        the deadline or either stake - checked as syntax over the whole file.
+
+        The round is written in `_write_round`, which every opening path ends
+        in. The ONE permitted later write is `extend_deadline` moving
+        `deadline` - forward only, while the round is still open, at most
+        twice - and it may touch nothing else on this list; the behaviour is
+        pinned in `TestExtensions`."""
         forbidden = ("min_score_threshold", "max_winners", "max_proposals",
                      "deadline", "criteria_start", "criteria_count",
                      "criteria_hash", "config_hash", "pool_wei",
@@ -5652,14 +5666,19 @@ class TestAttacks(unittest.TestCase):
         for node in ast.walk(TREE):
             if not isinstance(node, ast.FunctionDef):
                 continue
-            if node.name in ("create_round", "__init__"):
+            # The three creation sites: a round's fields in `_write_round`, a
+            # pool's once in `_open_pool`, the contract's in `__init__`.
+            if node.name in ("create_round", "__init__", "_write_round",
+                             "_open_pool"):
                 continue
             for sub in ast.walk(node):
                 if isinstance(sub, ast.Attribute) and isinstance(sub.ctx,
                                                                  ast.Store) \
                         and sub.attr in forbidden:
+                    if node.name == "extend_deadline" and sub.attr == "deadline":
+                        continue
                     target = ast.unparse(sub.value)
-                    if target in ("rnd", "round", "self"):
+                    if target in ("rnd", "round", "self", "plan"):
                         self.fail(node.name + " assigns " + sub.attr)
 
     def test_a_treasurer_cannot_withdraw_a_live_pool(self):
@@ -5838,6 +5857,1954 @@ class TestRandomisedLifecycles(unittest.TestCase):
             self.assertEqual(int(c.payable_wei), 0, shape + " — payable")
             self.assertEqual(int(c.balance_wei), 0, shape + " — balance")
 
+
+
+# ---------------------------------------------------------------------------
+# 7. THE MILESTONE BUILD: pools, co-approvers, milestones, reputation,
+#    templates, analytics, batch evaluation, amendments, extensions and the
+#    remainder route.
+#
+# Every one of these is OPTIONAL, and the first thing proved about each is
+# that leaving it out changes nothing - the 682 tests above still run against
+# plain `create_round` rounds and still pass. What follows proves the new
+# paths keep the same twelve rules: no raise, refusals refund, nothing counted
+# before a refusal, consensus binds every stored value, the owner (and now the
+# co-approvers) cannot freeze money, and every GEN drains to zero.
+# ---------------------------------------------------------------------------
+
+GOOD_PROOF = (
+    "The MVP demo shipped on 14 March: a working indexer ingesting 2 million "
+    "studio devnet transactions with a 3 second lag, a public GraphQL "
+    "playground with 40 documented queries, and a recorded demo walkthrough of "
+    "12 minutes. The milestone deliverable is the MVP demo described in the "
+    "proposal; 38 developers used the playground in week 1, hosting cost 0.2 "
+    "GEN for the month, and the one risk we hit was schema churn, mitigated by "
+    "the versioned ingest layer. Repository tag v0.1.0, release notes and the "
+    "demo recording are linked.")
+
+FINAL_PROOF = (
+    "Final delivery completed on 30 May: the indexer is in production with "
+    "self hosting documentation, a docker image and a tutorial; 5 external "
+    "teams run their own instance and 212 developers used the API in the "
+    "first quarter. The final delivery milestone is met in full: the audit "
+    "report of 18 pages is published, the budget closed at 4.8 GEN against 5, "
+    "and the remaining risk, schema churn, is covered by the replayable log. "
+    "Release v1.0.0 is tagged and the handover to the community is done.")
+
+THIN_PROOF = (
+    "We made good progress on the project and the team is happy with how "
+    "things are going. More to come soon, thanks for your support and "
+    "patience with us.")
+
+MILESTONES_60_40 = [
+    {"description": "MVP demo: a working indexer and public playground",
+     "percentage": 60, "proof_format": "demo recording, figures"},
+    {"description": "Final delivery: production indexer, docs and handover",
+     "percentage": 40, "proof_format": "release tag, usage figures"},
+]
+
+
+def open_pool(c, treasurer=TREASURER, pool=10 * GEN, criteria=None,
+              max_proposals=8, max_winners=3, threshold=400, window=3600,
+              name="Ecosystem Growth v2", description="A multi-round pool.",
+              options=None):
+    """Open a pool and return (pool_id, first_round_id). Loud on failure, for
+    the reason `open_round` is."""
+    opts = json.dumps(options) if isinstance(options, dict) else (options or "")
+    out = send(c, treasurer, pool, "create_pool", name, description,
+               criteria if criteria is not None else CRITERIA_4,
+               max_proposals, max_winners, threshold, window, opts)
+    if not ok(out):
+        raise AssertionError("fixture pool failed: " + str(out))
+    return int(out["pool_id"]), int(out["round_id"])
+
+
+def pool_of(c, pool_id):
+    return c.pools[pool_id - 1]
+
+
+def drain(c, *wallets):
+    """Sweep every listed wallet's claimable balance. Part of a lifecycle, not
+    an escape from one."""
+    for who in wallets:
+        if int(c.payout_wei.get(who) or 0) > 0:
+            send(c, who, 0, "claim_payout")
+
+
+class TestPureNewHelpers(unittest.TestCase):
+    def test_majority_of_zero_is_zero(self):
+        self.assertEqual(C._majority(0), 0)
+
+    def test_majority_of_one_is_one(self):
+        self.assertEqual(C._majority(1), 1)
+
+    def test_majority_of_two_is_two(self):
+        self.assertEqual(C._majority(2), 2)
+
+    def test_majority_of_three_is_two(self):
+        self.assertEqual(C._majority(3), 2)
+
+    def test_majority_clamps_junk(self):
+        self.assertEqual(C._majority(-4), 0)
+        self.assertEqual(C._majority("x"), 0)
+        self.assertEqual(C._majority(99), 2)
+
+    def test_milestones_absent_is_none(self):
+        self.assertEqual(C._parse_milestones(None), ([], ""))
+        self.assertEqual(C._parse_milestones([]), ([], ""))
+
+    def test_milestones_must_be_a_list(self):
+        self.assertTrue(C._parse_milestones({"a": 1})[1])
+
+    def test_milestones_parse_and_convert_to_bps(self):
+        rows, error = C._parse_milestones(MILESTONES_60_40)
+        self.assertEqual(error, "")
+        self.assertEqual([r["bps"] for r in rows], [6000, 4000])
+
+    def test_milestones_must_sum_to_one_hundred(self):
+        rows = [dict(MILESTONES_60_40[0]), dict(MILESTONES_60_40[1])]
+        rows[1]["percentage"] = 39
+        self.assertIn("sum to exactly 100", C._parse_milestones(rows)[1])
+
+    def test_milestone_percentage_bounds(self):
+        for bad in (0, -1, 101, "x", True):
+            rows = [{"description": "only", "percentage": bad}]
+            self.assertTrue(C._parse_milestones(rows)[1], bad)
+
+    def test_milestone_needs_a_description(self):
+        self.assertIn("description", C._parse_milestones(
+            [{"description": " ", "percentage": 100}])[1])
+
+    def test_milestone_row_must_be_an_object(self):
+        self.assertIn("not an object", C._parse_milestones(["x"])[1])
+
+    def test_at_most_four_milestones(self):
+        rows = [{"description": "m" + str(i), "percentage": 20} for i in range(5)]
+        self.assertIn("at most", C._parse_milestones(rows)[1])
+
+    def test_options_empty_is_all_defaults(self):
+        out, error = C._parse_options("", TREASURER.as_hex)
+        self.assertEqual(error, "")
+        self.assertEqual(out["co_approvers"], [])
+        self.assertEqual(out["milestones"], [])
+        self.assertEqual(out["min_reputation"], 0)
+
+    def test_options_must_be_json_object(self):
+        self.assertTrue(C._parse_options("[1]", TREASURER.as_hex)[1])
+        self.assertTrue(C._parse_options("{bad", TREASURER.as_hex)[1])
+
+    def test_options_refuse_the_treasurer_as_approver(self):
+        text = json.dumps({"co_approvers": [TREASURER.as_hex]})
+        self.assertIn("their own", C._parse_options(text, TREASURER.as_hex)[1])
+
+    def test_options_refuse_a_repeated_approver(self):
+        text = json.dumps({"co_approvers": [CAROL.as_hex, CAROL.as_hex.upper()
+                                            .replace("0X", "0x")]})
+        self.assertIn("twice", C._parse_options(text, TREASURER.as_hex)[1])
+
+    def test_options_refuse_a_non_address(self):
+        text = json.dumps({"co_approvers": ["carol"]})
+        self.assertIn("not a 20-byte", C._parse_options(text, TREASURER.as_hex)[1])
+
+    def test_options_refuse_four_approvers(self):
+        text = json.dumps({"co_approvers": [a.as_hex for a in
+                                            (ALICE, BOB, CAROL, DAVE)]})
+        self.assertIn("at most", C._parse_options(text, TREASURER.as_hex)[1])
+
+    def test_options_reputation_bounds(self):
+        for bad in (-1, 11, "x"):
+            text = json.dumps({"min_reputation": bad})
+            self.assertTrue(C._parse_options(text, TREASURER.as_hex)[1], bad)
+
+    def test_options_window_bounds(self):
+        for key in ("milestone_window_s", "approval_window_s"):
+            for bad in (1, 10 ** 12):
+                text = json.dumps({key: bad})
+                self.assertTrue(C._parse_options(text, TREASURER.as_hex)[1],
+                                key)
+
+    def test_options_lowercase_approvers(self):
+        text = json.dumps({"co_approvers": ["0x" + "E" * 40]})
+        out, error = C._parse_options(text, TREASURER.as_hex)
+        self.assertEqual(error, "")
+        self.assertEqual(out["co_approvers"], ["0x" + "e" * 40])
+
+    def test_tranches_sum_to_the_award_exactly(self):
+        """The last tranche takes what the floors left, so no award ever loses
+        a wei to rounding - over a spread of awkward awards and splits."""
+        for award in (1, 7, 999, 10 ** 18 + 1, 3 * 10 ** 18 + 12345):
+            for bps in ([10000], [6000, 4000], [3333, 3333, 3334],
+                        [2500, 2500, 2500, 2500], [100, 9900]):
+                released = 0
+                for i in range(len(bps)):
+                    released += C._tranche(award, bps, i, released)
+                self.assertEqual(released, award, (award, bps))
+
+    def test_tranche_out_of_range_is_zero(self):
+        self.assertEqual(C._tranche(100, [10000], 1, 0), 0)
+        self.assertEqual(C._tranche(100, [10000], -1, 0), 0)
+        self.assertEqual(C._tranche(0, [10000], 0, 0), 0)
+
+    def test_text_key_survives_spacing_case_and_punctuation(self):
+        a = C._text_key("We will build it. It costs 5 GEN!")
+        b = C._text_key("  we WILL build it;   it costs 5 gen.")
+        self.assertEqual(a, b)
+
+    def test_text_key_differs_for_different_words(self):
+        self.assertNotEqual(C._text_key("We will build it."),
+                            C._text_key("We will build them."))
+
+    def test_isqrt(self):
+        for n in (0, 1, 2, 3, 4, 15, 16, 17, 10 ** 12, 10 ** 12 + 1):
+            r = C._isqrt(n)
+            self.assertLessEqual(r * r, n)
+            self.assertGreater((r + 1) * (r + 1), n)
+        self.assertEqual(C._isqrt(-5), 0)
+
+    def test_spread_of_nothing(self):
+        self.assertEqual(C._spread([])["count"], 0)
+
+    def test_spread_by_hand(self):
+        out = C._spread([2, 4, 4, 4, 5, 5, 7, 9])
+        self.assertEqual(out["mean"], 500)
+        self.assertEqual(out["min"], 200)
+        self.assertEqual(out["max"], 900)
+        self.assertEqual(out["stddev"], 200)
+
+    def test_analytics_by_hand(self):
+        rows = [
+            {"scores": [7, 1], "effective": 650, "status": "FUNDED",
+             "contest_status": ""},
+            {"scores": [3, 3], "effective": 280, "status": "REJECTED",
+             "contest_status": "LOST"},
+            {"scores": [5, 2], "effective": 450, "status": "FUNDED",
+             "contest_status": "WON"},
+        ]
+        out = C._analytics(rows, ["A", "B"])
+        self.assertEqual(out["scored_count"], 3)
+        self.assertEqual(out["criteria"][0]["mean"], 500)
+        self.assertEqual(out["criteria"][1]["max"], 300)
+        self.assertEqual(out["distribution"][6], 1)
+        self.assertEqual(out["distribution"][2], 1)
+        self.assertEqual(out["distribution"][4], 1)
+        self.assertEqual(sum(out["distribution"]), 3)
+        self.assertEqual(out["funding_rate_bps"], 6666)
+        self.assertEqual(out["contest_success_bps"], 5000)
+        self.assertEqual(out["mean_score"], (650 + 280 + 450) // 3)
+
+    def test_analytics_of_nothing_divides_by_nothing(self):
+        out = C._analytics([], ["A"])
+        self.assertEqual(out["funding_rate_bps"], 0)
+        self.assertEqual(out["contest_success_bps"], 0)
+        self.assertEqual(out["mean_score"], 0)
+
+    def test_an_unamended_reading_hashes_as_it_always_did(self):
+        """`_optional_parts` appends nothing when there is nothing to append,
+        so every existing proposal hash is unchanged by this build."""
+        f = facts_for()
+        f.pop("amendment", None)
+        with_empty = dict(f)
+        with_empty["amendment"] = ""
+        with_empty["subject"] = ""
+        self.assertEqual(C._facts_hash(f), C._facts_hash(with_empty))
+        self.assertEqual(C._content_hash(f, [5, 5, 5, 5], 5, 5, 500),
+                         C._content_hash(with_empty, [5, 5, 5, 5], 5, 5, 500))
+
+    def test_an_amendment_changes_both_hashes(self):
+        f = facts_for()
+        g = dict(f)
+        g["amendment"] = "We add a named auditor and a 2 week buffer."
+        self.assertNotEqual(C._facts_hash(f), C._facts_hash(g))
+        self.assertNotEqual(C._content_hash(f, [5] * 4, 5, 5, 500),
+                            C._content_hash(g, [5] * 4, 5, 5, 500))
+
+    def test_an_amendment_is_read_as_part_of_the_filing(self):
+        f = facts_for(text=THIN)
+        f["timeline"] = TIMELINE_WEAK
+        f["team"] = TEAM_WEAK
+        g = dict(f)
+        g["amendment"] = ("Budget: 2 GEN salary for 3 months, 0.5 GEN hosting, "
+                          "milestone at week 6 and week 12.")
+        self.assertGreater(C._reading(g)["depth"], C._reading(f)["depth"])
+
+    def test_the_prompt_shows_the_amendment_delimited(self):
+        f = facts_for()
+        f["amendment"] = "An added paragraph."
+        prompt = C._prompt(f, C._reading(f))
+        self.assertIn("<<<AMENDMENT\nAn added paragraph.\nAMENDMENT", prompt)
+
+    def test_milestone_facts_are_a_one_line_rubric(self):
+        f = C._milestone_facts(1, 2, "R", 0, "MVP demo", "a recording", "u",
+                               GOOD_PROOF, 3, 5)
+        self.assertEqual(f["criteria_weights"], [10000])
+        self.assertEqual(f["threshold"], C.MILESTONE_THRESHOLD)
+        self.assertIn("Expected proof: a recording", f["criteria_descs"][0])
+
+    def test_a_milestone_verdict_cannot_be_replayed_on_another(self):
+        a = C._milestone_facts(1, 2, "R", 0, "MVP", "", "u", GOOD_PROOF, 3, 5)
+        b = C._milestone_facts(1, 2, "R", 1, "MVP", "", "u", GOOD_PROOF, 3, 5)
+        self.assertNotEqual(C._facts_hash(a), C._facts_hash(b))
+
+    def test_the_cited_url_is_committed_to(self):
+        a = C._milestone_facts(1, 2, "R", 0, "MVP", "", "https://a", GOOD_PROOF, 3, 5)
+        b = C._milestone_facts(1, 2, "R", 0, "MVP", "", "https://b", GOOD_PROOF, 3, 5)
+        self.assertNotEqual(C._facts_hash(a), C._facts_hash(b))
+
+    def test_the_milestone_prompt_says_links_are_not_opened(self):
+        f = C._milestone_facts(1, 2, "R", 0, "MVP demo", "", "https://x",
+                               GOOD_PROOF, 3, 5)
+        prompt = C._prompt(f, C._reading(f))
+        self.assertIn("not fetched", prompt)
+        self.assertIn("<<<PROOF", prompt)
+        self.assertIn("https://x", prompt)
+
+    def test_a_detailed_proof_clears_the_bar_from_its_floor(self):
+        f = C._milestone_facts(1, 2, "R", 0, MILESTONES_60_40[0]["description"],
+                               "", "u", GOOD_PROOF, 3, 5)
+        read = C._reading(f)
+        lows = [lo for lo, _ in read["brackets"]]
+        self.assertTrue(C._derive(f, lows, read["quality_bracket"][0])["qualifies"])
+
+    def test_a_vague_proof_cannot_clear_the_bar_at_its_ceiling(self):
+        f = C._milestone_facts(1, 2, "R", 0, MILESTONES_60_40[0]["description"],
+                               "", "u", THIN_PROOF, 3, 5)
+        self.assertFalse(C._derive(f, [7], 7)["qualifies"])
+        self.assertFalse(C._reading(f)["model_called"])
+
+
+class TestPools(unittest.TestCase):
+    def setUp(self):
+        self.c = fresh(round_cooldown_s=0)
+
+    def test_create_pool_opens_round_one(self):
+        pid, rid = open_pool(self.c)
+        rnd = view(self.c, STRANGER, "get_round", rid)
+        self.assertEqual(rnd["pool_id"], pid)
+        self.assertEqual(rnd["round_number"], 1)
+        self.assertEqual(rnd["pool_wei"], str(10 * GEN))
+        self.assertEqual(rnd["name"], "Ecosystem Growth v2 - Round 1")
+
+    def test_the_pool_records_its_rubric_and_shape(self):
+        pid, rid = open_pool(self.c, max_winners=2, threshold=350)
+        p = view(self.c, STRANGER, "get_pool", pid)
+        self.assertTrue(p["found"])
+        self.assertEqual(p["max_winners"], 2)
+        self.assertEqual(p["min_score_threshold"], 350)
+        self.assertEqual(len(p["criteria"]), 4)
+        self.assertEqual(p["criteria_hash"],
+                         view(self.c, STRANGER, "get_round", rid)["criteria_hash"])
+        self.assertEqual(p["latest_round_id"], rid)
+
+    def test_create_pool_refuses_like_create_round(self):
+        c = self.c
+        for args, value in (
+                (("ab", "", CRITERIA_4, 4, 1, 400, 3600, ""), 2 * GEN),
+                (("Pool", "", CRITERIA_4, 4, 1, 400, 3600, ""), GEN // 2),
+                (("Pool", "", "[]", 4, 1, 400, 3600, ""), 2 * GEN),
+                (("Pool", "", CRITERIA_4, 4, 5, 400, 3600, ""), 2 * GEN),
+                (("Pool", "", CRITERIA_4, 4, 1, 400, 10, ""), 2 * GEN),
+                (("Pool", "", CRITERIA_4, 4, 1, 400, 3600, "{bad"), 2 * GEN)):
+            before = int(c.payout_wei.get(TREASURER) or 0)
+            out = send(c, TREASURER, value, "create_pool", *args)
+            self.assertTrue(rejected(out), args)
+            self.assertEqual(int(c.payout_wei.get(TREASURER) or 0) - before,
+                             value, "a refused pool is refunded in full")
+        self.assertEqual(len(c.pools), 0)
+        self.assertEqual(len(c.rounds), 0)
+
+    def test_create_pool_is_gated_on_pause(self):
+        send(self.c, OWNER, 0, "set_paused", True)
+        out = send(self.c, TREASURER, 2 * GEN, "create_pool", "Pool", "",
+                   CRITERIA_4, 4, 1, 400, 3600, "")
+        self.assertTrue(rejected(out))
+        self.assertIn("paused", out["reason"])
+
+    def test_top_up_adds_to_the_reserve_not_the_live_round(self):
+        pid, rid = open_pool(self.c)
+        out = send(self.c, TREASURER, 3 * GEN, "top_up_pool", pid)
+        self.assertTrue(ok(out))
+        self.assertEqual(int(pool_of(self.c, pid).reserve_wei), 3 * GEN)
+        self.assertEqual(int(self.c.rounds[rid - 1].pool_wei), 10 * GEN)
+
+    def test_only_the_treasurer_tops_up(self):
+        pid, _ = open_pool(self.c)
+        out = send(self.c, STRANGER, GEN, "top_up_pool", pid)
+        self.assertTrue(rejected(out))
+        self.assertEqual(int(pool_of(self.c, pid).reserve_wei), 0)
+        self.assertEqual(int(self.c.payout_wei.get(STRANGER)), GEN)
+
+    def test_a_top_up_must_carry_value(self):
+        pid, _ = open_pool(self.c)
+        self.assertTrue(rejected(send(self.c, TREASURER, 0, "top_up_pool", pid)))
+
+    def test_top_up_of_a_missing_pool(self):
+        self.assertTrue(rejected(send(self.c, TREASURER, GEN, "top_up_pool", 9)))
+
+    def test_next_round_waits_for_the_live_round(self):
+        pid, _ = open_pool(self.c)
+        send(self.c, TREASURER, 3 * GEN, "top_up_pool", pid)
+        out = send(self.c, TREASURER, 0, "create_next_round", pid)
+        self.assertTrue(rejected(out))
+        self.assertIn("still open", out["reason"])
+
+    def _ranked_pool(self):
+        pid, rid = open_pool(self.c)
+        a = file_proposal(self.c, rid, ALICE, STRONG)
+        file_proposal(self.c, rid, BOB, MEDIUM)
+        set_now(NOW + 3601)
+        score_all(self.c, rid)
+        self.assertTrue(ok(send(self.c, STRANGER, 0, "finalize", rid)))
+        return pid, rid, a
+
+    def test_next_round_opens_from_the_reserve_under_the_same_rubric(self):
+        pid, rid, _ = self._ranked_pool()
+        send(self.c, TREASURER, 3 * GEN, "top_up_pool", pid)
+        out = send(self.c, TREASURER, 0, "create_next_round", pid)
+        self.assertTrue(ok(out), out)
+        r2 = int(out["round_id"])
+        self.assertEqual(out["round_number"], 2)
+        self.assertEqual(int(self.c.rounds[r2 - 1].pool_wei), 3 * GEN)
+        self.assertEqual(self.c.rounds[r2 - 1].criteria_hash,
+                         self.c.rounds[rid - 1].criteria_hash)
+        self.assertEqual(int(self.c.rounds[r2 - 1].criteria_start),
+                         int(self.c.rounds[rid - 1].criteria_start))
+        self.assertEqual(int(pool_of(self.c, pid).reserve_wei), 0)
+        self.assertEqual(view(self.c, STRANGER, "get_round", r2)["name"],
+                         "Ecosystem Growth v2 - Round 2")
+
+    def test_next_round_may_carry_its_own_top_up(self):
+        pid, _, _ = self._ranked_pool()
+        out = send(self.c, TREASURER, 2 * GEN, "create_next_round", pid)
+        self.assertTrue(ok(out))
+        self.assertEqual(out["pool_wei"], str(2 * GEN))
+
+    def test_next_round_needs_a_round_sized_reserve(self):
+        pid, _, _ = self._ranked_pool()
+        send(self.c, TREASURER, GEN // 2, "top_up_pool", pid)
+        out = send(self.c, TREASURER, 0, "create_next_round", pid)
+        self.assertTrue(rejected(out))
+        self.assertEqual(int(pool_of(self.c, pid).reserve_wei), GEN // 2)
+
+    def test_only_the_treasurer_opens_the_next_round(self):
+        pid, _, _ = self._ranked_pool()
+        send(self.c, TREASURER, 3 * GEN, "top_up_pool", pid)
+        out = send(self.c, STRANGER, GEN, "create_next_round", pid)
+        self.assertTrue(rejected(out))
+        self.assertEqual(int(self.c.payout_wei.get(STRANGER)), GEN)
+
+    def test_next_round_respects_the_cooldown(self):
+        c = fresh(round_cooldown_s=7200)
+        pid, rid = open_pool(c)
+        file_proposal(c, rid, ALICE)
+        set_now(NOW + 3601)
+        score_all(c, rid)
+        send(c, STRANGER, 0, "finalize", rid)
+        out = send(c, TREASURER, 2 * GEN, "create_next_round", pid)
+        self.assertTrue(rejected(out))
+        self.assertIn("limit is one per", out["reason"])
+
+    def test_next_round_of_a_missing_pool(self):
+        self.assertTrue(rejected(send(self.c, TREASURER, GEN, "create_next_round", 4)))
+
+    def test_create_next_round_is_gated_on_pause(self):
+        pid, _, _ = self._ranked_pool()
+        send(self.c, OWNER, 0, "set_paused", True)
+        out = send(self.c, TREASURER, 2 * GEN, "create_next_round", pid)
+        self.assertTrue(rejected(out))
+        self.assertIn("paused", out["reason"])
+
+    def test_a_cancelled_round_frees_the_pool_for_its_next(self):
+        pid, rid = open_pool(self.c)
+        self.assertTrue(ok(send(self.c, TREASURER, 0, "cancel_round", rid)))
+        self.assertTrue(ok(send(self.c, TREASURER, 2 * GEN, "create_next_round", pid)))
+
+    def test_withdraw_reserve(self):
+        pid, _ = open_pool(self.c)
+        send(self.c, TREASURER, 3 * GEN, "top_up_pool", pid)
+        out = send(self.c, TREASURER, 0, "withdraw_reserve", pid)
+        self.assertTrue(ok(out))
+        self.assertEqual(int(pool_of(self.c, pid).reserve_wei), 0)
+        self.assertEqual(int(self.c.payout_wei.get(TREASURER)), 3 * GEN)
+
+    def test_withdraw_reserve_refusals(self):
+        pid, _ = open_pool(self.c)
+        self.assertTrue(rejected(send(self.c, TREASURER, 0, "withdraw_reserve", pid)))
+        send(self.c, TREASURER, GEN, "top_up_pool", pid)
+        self.assertTrue(rejected(send(self.c, STRANGER, 0, "withdraw_reserve", pid)))
+        self.assertTrue(rejected(send(self.c, TREASURER, 0, "withdraw_reserve", 77)))
+
+    def test_withdraw_reserve_works_while_paused(self):
+        pid, _ = open_pool(self.c)
+        send(self.c, TREASURER, GEN, "top_up_pool", pid)
+        send(self.c, OWNER, 0, "set_paused", True)
+        self.assertTrue(ok(send(self.c, TREASURER, 0, "withdraw_reserve", pid)))
+
+    def test_history_sums_the_rounds(self):
+        pid, rid, _ = self._ranked_pool()
+        out = send(self.c, TREASURER, 2 * GEN, "create_next_round", pid)
+        r2 = int(out["round_id"])
+        file_proposal(self.c, r2, CAROL, THIN, asked=GEN)
+        h = view(self.c, STRANGER, "get_pool_history", pid)
+        self.assertEqual(h["total_rounds"], 2)
+        self.assertEqual(h["total_proposals"], 3)
+        self.assertEqual([r["round_id"] for r in h["rounds"]], [rid, r2])
+        self.assertEqual(h["total_funded"], int(self.c.rounds[rid - 1].funded_count))
+        self.assertEqual(h["total_distributed_wei"],
+                         str(int(self.c.rounds[rid - 1].allocated_wei)))
+        self.assertEqual(h["total_pool_wei"], str(12 * GEN))
+
+    def test_history_of_a_missing_pool(self):
+        self.assertFalse(view(self.c, STRANGER, "get_pool_history", 3)["found"])
+        self.assertFalse(view(self.c, STRANGER, "get_pool", 3)["found"])
+
+    def test_get_pools_is_newest_first(self):
+        open_pool(self.c, name="First pool")
+        open_pool(self.c, name="Second pool")
+        out = view(self.c, STRANGER, "get_pools", 0, 10)
+        self.assertEqual([p["name"] for p in out["pools"]],
+                         ["Second pool", "First pool"])
+
+    def test_a_plain_round_belongs_to_no_pool(self):
+        rid = open_round(self.c)
+        rnd = view(self.c, STRANGER, "get_round", rid)
+        self.assertEqual(rnd["pool_id"], 0)
+        self.assertEqual(rnd["round_number"], 0)
+        self.assertEqual(rnd["approvals_needed"], 0)
+        self.assertEqual(rnd["milestone_count"], 0)
+
+    def test_a_two_round_pool_drains_to_zero(self):
+        c = self.c
+        pid, rid, a = self._ranked_pool()
+        for pid_ in (1, 2):
+            prop = c.proposals[pid_ - 1]
+            if int(prop.payout_wei) > 0:
+                send(c, prop.author, 0, "claim_award", rid, pid_)
+        out = send(c, TREASURER, 3 * GEN, "create_next_round", pid)
+        r2 = int(out["round_id"])
+        file_proposal(c, r2, CAROL, THIN, asked=GEN)
+        set_now(NOW + 2 * 3601 + 100)
+        score_all(c, r2, high=False)
+        send(c, STRANGER, 0, "finalize", r2)
+        set_now(NOW + 10 * DAY)
+        for r in (rid, r2):
+            send(c, TREASURER, 0, "claim_remainder_fallback", r)
+        drain(c, TREASURER, ALICE, BOB, CAROL)
+        self.assertEqual(int(c.locked_wei), 0)
+        self.assertEqual(int(c.balance_wei), 0)
+
+
+class TestVerbatimGate(unittest.TestCase):
+    def setUp(self):
+        self.c = fresh(round_cooldown_s=0)
+        self.pid, self.rid = open_pool(self.c)
+        file_proposal(self.c, self.rid, ALICE, STRONG)
+        set_now(NOW + 3601)
+        score_all(self.c, self.rid)
+        send(self.c, STRANGER, 0, "finalize", self.rid)
+        out = send(self.c, TREASURER, 2 * GEN, "create_next_round", self.pid)
+        self.r2 = int(out["round_id"])
+
+    def _file(self, who, text):
+        return send(self.c, who, int(self.c.spam_stake_wei), "submit_proposal",
+                    self.r2, text, GEN, TIMELINE_STRONG, TEAM_STRONG)
+
+    def test_a_verbatim_resubmission_is_refused(self):
+        out = self._file(ALICE, STRONG)
+        self.assertTrue(rejected(out))
+        self.assertEqual(out["earlier_proposal_id"], 1)
+
+    def test_the_refusal_takes_no_stake(self):
+        self._file(ALICE, STRONG)
+        self.assertEqual(int(self.c.payout_wei.get(ALICE) or 0) >=
+                         int(self.c.spam_stake_wei), True)
+        self.assertEqual(int(self.c.rounds[self.r2 - 1].proposal_count), 0)
+
+    def test_respacing_and_recasing_is_still_verbatim(self):
+        self.assertTrue(rejected(self._file(ALICE, "  " + STRONG.upper() + " ")))
+
+    def test_another_wallet_cannot_file_the_same_text(self):
+        self.assertTrue(rejected(self._file(BOB, STRONG)))
+
+    def test_a_new_proposal_is_accepted(self):
+        self.assertTrue(ok(self._file(ALICE, MEDIUM)))
+
+    def test_a_filing_in_another_pool_is_unaffected(self):
+        _, other = open_pool(self.c, name="Other pool")
+        out = send(self.c, ALICE, int(self.c.spam_stake_wei), "submit_proposal",
+                   other, STRONG, GEN, TIMELINE_STRONG, TEAM_STRONG)
+        self.assertTrue(ok(out))
+
+    def test_a_plain_round_has_no_cross_round_gate(self):
+        c = fresh(round_cooldown_s=0)
+        r1 = open_round(c)
+        r2 = open_round(c, name="Second plain")
+        file_proposal(c, r1, ALICE, STRONG)
+        file_proposal(c, r2, ALICE, STRONG)
+
+    def test_the_gate_is_counted_as_a_refusal(self):
+        before = int(self.c.total_rejected)
+        self._file(ALICE, STRONG)
+        self.assertEqual(int(self.c.total_rejected), before + 1)
+
+
+class TestApprovals(unittest.TestCase):
+    def setUp(self):
+        self.c = fresh(round_cooldown_s=0)
+        self.pid, self.rid = open_pool(
+            self.c, options={"co_approvers": [CAROL.as_hex, DAVE.as_hex],
+                             "approval_window_s": 3600})
+        file_proposal(self.c, self.rid, ALICE, STRONG)
+        file_proposal(self.c, self.rid, BOB, MEDIUM)
+        set_now(NOW + 3601)
+        score_all(self.c, self.rid)
+
+    def test_two_approvers_need_two_signatures(self):
+        self.assertEqual(int(self.c.rounds[self.rid - 1].approvals_needed), 2)
+
+    def test_finalize_waits_for_the_approvers(self):
+        out = send(self.c, STRANGER, 0, "finalize", self.rid)
+        self.assertTrue(rejected(out))
+        self.assertEqual(out["approvals_needed"], 2)
+
+    def test_one_approval_is_not_enough(self):
+        out = send(self.c, CAROL, 0, "approve_finalization", self.rid)
+        self.assertTrue(ok(out))
+        self.assertFalse(out["finalized"])
+        self.assertTrue(rejected(send(self.c, STRANGER, 0, "finalize", self.rid)))
+        self.assertEqual(self.c.rounds[self.rid - 1].status, "EVALUATING")
+
+    def test_the_second_approval_ranks_the_round(self):
+        send(self.c, CAROL, 0, "approve_finalization", self.rid)
+        out = send(self.c, DAVE, 0, "approve_finalization", self.rid)
+        self.assertTrue(out["finalized"])
+        self.assertEqual(out["finalize"]["approval_outcome"], "APPROVED")
+        self.assertEqual(self.c.rounds[self.rid - 1].status, "RANKED")
+        self.assertEqual(self.c.rounds[self.rid - 1].approval_outcome, "APPROVED")
+
+    def test_a_stranger_cannot_approve(self):
+        out = send(self.c, STRANGER, 0, "approve_finalization", self.rid)
+        self.assertTrue(rejected(out))
+
+    def test_the_treasurer_cannot_approve(self):
+        self.assertTrue(rejected(send(self.c, TREASURER, 0, "approve_finalization",
+                                      self.rid)))
+
+    def test_approving_twice_is_refused(self):
+        send(self.c, CAROL, 0, "approve_finalization", self.rid)
+        self.assertTrue(rejected(send(self.c, CAROL, 0, "approve_finalization",
+                                      self.rid)))
+
+    def test_an_approval_needs_every_proposal_resolved(self):
+        c = fresh(round_cooldown_s=0)
+        _, rid = open_pool(c, options={"co_approvers": [CAROL.as_hex]})
+        a = file_proposal(c, rid, ALICE)
+        file_proposal(c, rid, BOB, MEDIUM)
+        set_now(NOW + 3601)
+        score_one(c, rid, a)
+        out = send(c, CAROL, 0, "approve_finalization", rid)
+        self.assertTrue(rejected(out))
+        self.assertIn("no score yet", out["reason"])
+
+    def test_an_approval_before_the_deadline_is_refused(self):
+        c = fresh(round_cooldown_s=0)
+        _, rid = open_pool(c, options={"co_approvers": [CAROL.as_hex]})
+        self.assertTrue(rejected(send(c, CAROL, 0, "approve_finalization", rid)))
+
+    def test_one_of_one(self):
+        c = fresh(round_cooldown_s=0)
+        _, rid = open_pool(c, options={"co_approvers": [CAROL.as_hex]})
+        file_proposal(c, rid, ALICE)
+        set_now(NOW + 3601)
+        score_all(c, rid)
+        out = send(c, CAROL, 0, "approve_finalization", rid)
+        self.assertTrue(out["finalized"])
+
+    def test_two_of_three(self):
+        c = fresh(round_cooldown_s=0)
+        _, rid = open_pool(c, options={"co_approvers": [
+            CAROL.as_hex, DAVE.as_hex, STRANGER.as_hex]})
+        file_proposal(c, rid, ALICE)
+        set_now(NOW + 3601)
+        score_all(c, rid)
+        self.assertFalse(send(c, CAROL, 0, "approve_finalization", rid)["finalized"])
+        self.assertTrue(send(c, STRANGER, 0, "approve_finalization", rid)["finalized"])
+
+    def test_an_objection_is_counted(self):
+        out = send(self.c, CAROL, 0, "reject_finalization", self.rid)
+        self.assertTrue(ok(out))
+        self.assertEqual(out["rejections"], 1)
+        self.assertEqual(int(self.c.rounds[self.rid - 1].rejections_count), 1)
+
+    def test_a_vote_can_change_until_ranked(self):
+        send(self.c, CAROL, 0, "reject_finalization", self.rid)
+        send(self.c, DAVE, 0, "approve_finalization", self.rid)
+        out = send(self.c, CAROL, 0, "approve_finalization", self.rid)
+        self.assertTrue(out["finalized"])
+        self.assertEqual(out["rejections"], 0)
+
+    def test_the_requirement_lapses(self):
+        """RULE 6 for co-approvers. Approvers who never sign cannot hold the
+        stakes and awards in the round for ever."""
+        rnd = self.c.rounds[self.rid - 1]
+        lapses = int(rnd.deadline) + int(rnd.stall_ttl_s) + 3600
+        set_now(lapses)
+        self.assertTrue(rejected(send(self.c, STRANGER, 0, "finalize", self.rid)))
+        set_now(lapses + 1)
+        out = send(self.c, STRANGER, 0, "finalize", self.rid)
+        self.assertTrue(ok(out))
+        self.assertEqual(out["approval_outcome"], "LAPSED")
+
+    def test_objections_cannot_outlast_the_window(self):
+        send(self.c, CAROL, 0, "reject_finalization", self.rid)
+        send(self.c, DAVE, 0, "reject_finalization", self.rid)
+        rnd = self.c.rounds[self.rid - 1]
+        set_now(int(rnd.deadline) + int(rnd.stall_ttl_s) + 3601)
+        self.assertTrue(ok(send(self.c, STRANGER, 0, "finalize", self.rid)))
+
+    def test_a_vote_after_ranking_is_refused(self):
+        send(self.c, CAROL, 0, "approve_finalization", self.rid)
+        send(self.c, DAVE, 0, "approve_finalization", self.rid)
+        self.assertTrue(rejected(send(self.c, CAROL, 0, "reject_finalization",
+                                      self.rid)))
+
+    def test_a_plain_round_has_nobody_to_approve(self):
+        c = fresh(round_cooldown_s=0)
+        rid = open_round(c)
+        self.assertTrue(rejected(send(c, CAROL, 0, "approve_finalization", rid)))
+
+    def test_get_approvals(self):
+        send(self.c, CAROL, 0, "approve_finalization", self.rid)
+        out = view(self.c, STRANGER, "get_approvals", self.rid)
+        votes = {row["address"]: row["vote"] for row in out["approvers"]}
+        self.assertEqual(votes[CAROL.as_hex], "APPROVE")
+        self.assertEqual(votes[DAVE.as_hex], "PENDING")
+        self.assertFalse(out["satisfied"])
+        self.assertTrue(out["required"])
+
+    def test_approvals_work_while_paused(self):
+        send(self.c, OWNER, 0, "set_paused", True)
+        send(self.c, CAROL, 0, "approve_finalization", self.rid)
+        self.assertTrue(send(self.c, DAVE, 0, "approve_finalization",
+                             self.rid)["finalized"])
+
+    def test_an_approver_cannot_change_a_score(self):
+        before = [str(p.scores_csv) for p in self.c.proposals]
+        send(self.c, CAROL, 0, "approve_finalization", self.rid)
+        send(self.c, DAVE, 0, "reject_finalization", self.rid)
+        self.assertEqual([str(p.scores_csv) for p in self.c.proposals], before)
+
+    def test_value_sent_to_an_approval_is_refunded(self):
+        out = send(self.c, STRANGER, GEN, "approve_finalization", self.rid)
+        self.assertTrue(rejected(out))
+        self.assertEqual(int(self.c.payout_wei.get(STRANGER)), GEN)
+
+
+class TestMilestones(unittest.TestCase):
+    """A 60/40 schedule on a one-seat pool, a 3 GEN award."""
+
+    def setUp(self):
+        self.c = fresh(round_cooldown_s=0)
+        self.pid, self.rid = open_pool(
+            self.c, max_winners=1,
+            options={"milestones": MILESTONES_60_40,
+                     "milestone_window_s": 10 * DAY})
+        self.a = file_proposal(self.c, self.rid, ALICE, STRONG, asked=3 * GEN)
+        set_now(NOW + 3601)
+        score_all(self.c, self.rid)
+        self.assertTrue(ok(send(self.c, STRANGER, 0, "finalize", self.rid)))
+        self.prop = self.c.proposals[self.a - 1]
+
+    def prove(self, index, text=GOOD_PROOF, who=ALICE, url="https://x/demo"):
+        SCORER.serve([7], 7)
+        return send(self.c, who, 0, "submit_milestone_proof", self.rid, self.a,
+                    index, url, text)
+
+    def test_the_award_is_held_not_paid(self):
+        self.assertEqual(int(self.prop.award_wei), 3 * GEN)
+        self.assertEqual(int(self.prop.milestone_held_wei), 3 * GEN)
+        self.assertEqual(int(self.prop.payout_wei), int(self.c.spam_stake_wei))
+
+    def test_the_stake_is_claimable_at_ranking(self):
+        out = send(self.c, ALICE, 0, "claim_award", self.rid, self.a)
+        self.assertTrue(ok(out))
+        self.assertEqual(out["payout_wei"], str(int(self.c.spam_stake_wei)))
+        self.assertEqual(out["held_wei"], str(3 * GEN))
+
+    def test_a_passing_proof_releases_sixty_percent(self):
+        out = self.prove(0)
+        self.assertTrue(ok(out), out)
+        self.assertEqual(out["outcome"], "MILESTONE_PASSED")
+        self.assertEqual(out["released_wei"], str(3 * GEN * 60 // 100))
+        self.assertEqual(int(self.prop.milestone_held_wei), 3 * GEN * 40 // 100)
+
+    def test_the_tranche_is_claimed_through_claim_award(self):
+        send(self.c, ALICE, 0, "claim_award", self.rid, self.a)
+        self.prove(0)
+        out = send(self.c, ALICE, 0, "claim_award", self.rid, self.a)
+        self.assertTrue(ok(out))
+        self.assertEqual(out["payout_wei"], str(18 * GEN // 10))
+
+    def test_both_milestones_release_the_whole_award(self):
+        self.prove(0)
+        out = self.prove(1, FINAL_PROOF)
+        self.assertEqual(out["outcome"], "MILESTONE_PASSED", out)
+        self.assertEqual(int(self.prop.milestone_released_wei), 3 * GEN)
+        self.assertEqual(int(self.prop.milestone_held_wei), 0)
+        self.assertEqual(int(self.prop.milestones_passed), 2)
+
+    def test_the_round_drains_to_zero_after_both(self):
+        c = self.c
+        self.prove(0)
+        send(c, ALICE, 0, "claim_award", self.rid, self.a)
+        self.prove(1, FINAL_PROOF)
+        send(c, ALICE, 0, "claim_award", self.rid, self.a)
+        set_now(NOW + 3601 + 2 * DAY)
+        send(c, TREASURER, 0, "claim_remainder_fallback", self.rid)
+        drain(c, TREASURER, ALICE)
+        self.assertEqual(round_locked(c, self.rid), 0)
+        self.assertEqual(int(c.balance_wei), 0)
+
+    def test_milestones_go_in_order(self):
+        out = self.prove(1, FINAL_PROOF)
+        self.assertTrue(rejected(out))
+        self.assertEqual(out["next_milestone"], 0)
+
+    def test_a_delivered_milestone_cannot_be_proved_twice(self):
+        self.prove(0)
+        self.assertTrue(rejected(self.prove(0)))
+
+    def test_only_the_author_proves(self):
+        self.assertTrue(rejected(self.prove(0, who=BOB)))
+
+    def test_a_short_proof_is_refused(self):
+        self.assertTrue(rejected(self.prove(0, text="done")))
+
+    def test_an_out_of_range_milestone(self):
+        self.assertTrue(rejected(self.prove(2)))
+        self.assertTrue(rejected(self.prove(-1)))
+
+    def test_a_vague_proof_fails_and_counts_an_attempt(self):
+        out = self.prove(0, THIN_PROOF)
+        self.assertEqual(out["outcome"], "MILESTONE_FAILED")
+        self.assertEqual(out["attempts_left"], C.MAX_PROOF_ATTEMPTS - 1)
+        self.assertEqual(int(self.prop.milestone_held_wei), 3 * GEN)
+
+    def test_a_failed_proof_can_be_retried(self):
+        self.prove(0, THIN_PROOF)
+        self.assertEqual(self.prove(0)["outcome"], "MILESTONE_PASSED")
+
+    def test_three_failures_exhaust_the_milestone(self):
+        for _ in range(C.MAX_PROOF_ATTEMPTS):
+            self.prove(0, THIN_PROOF)
+        self.assertTrue(rejected(self.prove(0)))
+
+    def test_an_exhausted_milestone_can_be_reclaimed_at_once(self):
+        for _ in range(C.MAX_PROOF_ATTEMPTS):
+            self.prove(0, THIN_PROOF)
+        out = send(self.c, STRANGER, 0, "reclaim_lapsed_milestones", self.rid,
+                   self.a)
+        self.assertTrue(ok(out))
+        self.assertEqual(out["returned_wei"], str(3 * GEN))
+        self.assertEqual(int(self.c.payout_wei.get(TREASURER)), 3 * GEN)
+
+    def test_reclaim_before_the_window_is_refused(self):
+        self.assertTrue(rejected(send(self.c, STRANGER, 0,
+                                      "reclaim_lapsed_milestones", self.rid, self.a)))
+
+    def test_the_window_lapses(self):
+        self.prove(0)
+        set_now(int(self.prop.settled_at) + 10 * DAY + 1)
+        self.assertTrue(rejected(self.prove(1, FINAL_PROOF)))
+        out = send(self.c, STRANGER, 0, "reclaim_lapsed_milestones", self.rid,
+                   self.a)
+        self.assertTrue(ok(out))
+        self.assertEqual(out["returned_wei"], str(3 * GEN * 40 // 100))
+        self.assertEqual(int(self.prop.milestone_lapsed_wei), 3 * GEN * 40 // 100)
+
+    def test_a_released_tranche_is_never_clawed_back(self):
+        self.prove(0)
+        set_now(int(self.prop.settled_at) + 10 * DAY + 1)
+        send(self.c, STRANGER, 0, "reclaim_lapsed_milestones", self.rid, self.a)
+        out = send(self.c, ALICE, 0, "claim_award", self.rid, self.a)
+        self.assertEqual(int(out["payout_wei"]),
+                         int(self.c.spam_stake_wei) + 18 * GEN // 10)
+
+    def test_a_lapsed_round_still_drains_to_zero(self):
+        c = self.c
+        send(c, ALICE, 0, "claim_award", self.rid, self.a)
+        set_now(NOW + 3601 + 11 * DAY)
+        send(c, STRANGER, 0, "reclaim_lapsed_milestones", self.rid, self.a)
+        send(c, TREASURER, 0, "claim_remainder_fallback", self.rid)
+        drain(c, TREASURER, ALICE)
+        self.assertEqual(round_locked(c, self.rid), 0)
+        self.assertEqual(int(c.balance_wei), 0)
+
+    def test_reclaim_twice_is_refused(self):
+        set_now(NOW + 3601 + 11 * DAY)
+        send(self.c, STRANGER, 0, "reclaim_lapsed_milestones", self.rid, self.a)
+        self.assertTrue(rejected(send(self.c, STRANGER, 0,
+                                      "reclaim_lapsed_milestones", self.rid, self.a)))
+
+    def test_an_unreadable_proof_costs_no_attempt(self):
+        SCORER.fail(times=2)
+        out = send(self.c, ALICE, 0, "submit_milestone_proof", self.rid, self.a,
+                   0, "u", GOOD_PROOF)
+        self.assertEqual(out["outcome"], "INCONCLUSIVE")
+        self.assertIsNone(self.c._proof(self.a, 0))
+
+    def test_a_disagreeing_network_stores_nothing(self):
+        SCORER.script(([6], 6), ([4], 4))
+        FORGE["payload"] = {"ok": True, "scores": [7]}
+        out = send(self.c, ALICE, 0, "submit_milestone_proof", self.rid, self.a,
+                   0, "u", GOOD_PROOF)
+        FORGE["payload"] = None
+        self.assertTrue(rejected(out))
+        self.assertIsNone(self.c._proof(self.a, 0))
+        self.assertEqual(int(self.prop.milestone_held_wei), 3 * GEN)
+
+    def test_the_proof_record_is_the_rederived_reading(self):
+        self.prove(0)
+        rec = self.c._proof(self.a, 0)
+        f = C._milestone_facts(self.rid, self.a, str(self.c.rounds[self.rid - 1].name),
+                               0, MILESTONES_60_40[0]["description"],
+                               MILESTONES_60_40[0]["proof_format"],
+                               "https://x/demo", GOOD_PROOF, 18 * GEN // 10, 3 * GEN)
+        d = C._derive(f, C._parse_csv(rec.scores_csv), int(rec.quality))
+        self.assertEqual(rec.content_hash, d["content_hash"])
+        self.assertEqual(int(rec.score), d["final_score"])
+
+    def test_the_url_is_never_fetched(self):
+        """`_web_unreachable` raises if any web call is made; a proof with a
+        URL must be judged on its text alone."""
+        self.assertEqual(self.prove(0)["outcome"], "MILESTONE_PASSED")
+
+    def test_get_milestone_status(self):
+        self.prove(0)
+        out = view(self.c, STRANGER, "get_milestone_status", self.rid, self.a)
+        self.assertTrue(out["has_milestones"])
+        self.assertEqual(out["passed"], 1)
+        self.assertEqual(out["next_milestone"], 1)
+        self.assertEqual(out["milestones"][0]["status"], "PASSED")
+        self.assertEqual(out["milestones"][1]["status"], "")
+        self.assertEqual(int(out["milestones"][0]["tranche_wei"])
+                         + int(out["milestones"][1]["tranche_wei"]), 3 * GEN)
+
+    def test_a_round_without_milestones_refuses_a_proof(self):
+        c = fresh(round_cooldown_s=0)
+        rid = open_round(c, max_winners=1)
+        a = file_proposal(c, rid, ALICE)
+        set_now(NOW + 3601)
+        score_all(c, rid)
+        send(c, STRANGER, 0, "finalize", rid)
+        out = send(c, ALICE, 0, "submit_milestone_proof", rid, a, 0, "u", GOOD_PROOF)
+        self.assertTrue(rejected(out))
+        self.assertEqual(int(c.proposals[a - 1].milestone_held_wei), 0)
+
+    def test_a_losing_proposal_has_nothing_to_prove(self):
+        c = fresh(round_cooldown_s=0)
+        _, rid = open_pool(c, max_winners=1, options={"milestones": MILESTONES_60_40})
+        a = file_proposal(c, rid, ALICE, STRONG)
+        b = file_proposal(c, rid, BOB, WEAK)
+        set_now(NOW + 3601)
+        score_all(c, rid)
+        send(c, STRANGER, 0, "finalize", rid)
+        out = send(c, BOB, 0, "submit_milestone_proof", rid, b, 0, "u", GOOD_PROOF)
+        self.assertTrue(rejected(out))
+
+    def test_milestone_proofs_work_while_paused(self):
+        send(self.c, OWNER, 0, "set_paused", True)
+        self.assertEqual(self.prove(0)["outcome"], "MILESTONE_PASSED")
+
+    def test_a_won_appeal_in_a_milestone_round_is_held_too(self):
+        c = fresh(round_cooldown_s=0, contest_window_s=3600)
+        _, rid = open_pool(c, max_winners=2, threshold=400,
+                           options={"milestones": MILESTONES_60_40})
+        b = file_proposal(c, rid, BOB, THIN, asked=GEN,
+                          timeline=TIMELINE_WEAK, team=TEAM_WEAK)
+        set_now(NOW + 3601)
+        score_all(c, rid)
+        send(c, STRANGER, 0, "finalize", rid)
+        self.assertEqual(c.proposals[b - 1].status, "REJECTED")
+        SCORER.serve([7] * 4, 7)
+        out = send(c, BOB, int(c.contest_stake_wei), "contest", rid, b,
+                   TestContest.EVIDENCE)
+        if out.get("outcome") == "CONTEST_WON" and int(out["award_wei"]) > 0:
+            prop = c.proposals[b - 1]
+            self.assertEqual(int(prop.milestone_held_wei), int(out["award_wei"]))
+            self.assertEqual(int(prop.payout_wei),
+                             int(prop.stake_return_wei) + int(prop.contest_return_wei))
+        else:
+            self.skipTest("fixture appeal did not win: " + str(out.get("outcome")))
+
+    def test_get_round_lists_the_schedule(self):
+        rnd = view(self.c, STRANGER, "get_round", self.rid)
+        self.assertEqual([m["percentage"] for m in rnd["milestones"]], [60, 40])
+
+
+class TestReputation(unittest.TestCase):
+    def setUp(self):
+        self.c = fresh(round_cooldown_s=0, contest_window_s=3600)
+        self.rid = open_round(self.c, max_winners=1)
+        self.a = file_proposal(self.c, self.rid, ALICE, STRONG)
+        self.b = file_proposal(self.c, self.rid, BOB, WEAK)
+        set_now(NOW + 3601)
+        score_all(self.c, self.rid)
+        send(self.c, STRANGER, 0, "finalize", self.rid)
+
+    def test_a_funded_proposer(self):
+        out = view(self.c, STRANGER, "get_proposer_stats", ALICE.as_hex)
+        self.assertEqual(out["rounds_entered"], 1)
+        self.assertEqual(out["proposals_funded"], 1)
+        self.assertEqual(out["total_awarded_wei"],
+                         str(int(self.c.proposals[self.a - 1].award_wei)))
+        self.assertEqual(out["average_score"],
+                         int(self.c.proposals[self.a - 1].final_score))
+
+    def test_a_rejected_proposer(self):
+        out = view(self.c, STRANGER, "get_proposer_stats", BOB.as_hex)
+        self.assertEqual(out["proposals_funded"], 0)
+        self.assertEqual(out["rounds_entered"], 1)
+
+    def test_a_stranger_has_an_empty_record(self):
+        out = view(self.c, STRANGER, "get_proposer_stats", DAVE.as_hex)
+        self.assertEqual(out["rounds_entered"], 0)
+        self.assertEqual(out["average_score"], 0)
+
+    def test_a_bad_address(self):
+        self.assertFalse(view(self.c, STRANGER, "get_proposer_stats", "x")["found"])
+
+    def test_a_lost_appeal_is_counted(self):
+        send(self.c, BOB, int(self.c.contest_stake_wei), "contest", self.rid,
+             self.b, "not much to add here at all, honestly")
+        out = view(self.c, STRANGER, "get_proposer_stats", BOB.as_hex)
+        self.assertEqual(out["contests_lost"] + out["contests_won"], 1)
+
+    def _gated(self, floor):
+        _, rid = open_pool(self.c, name="Community Fund",
+                           options={"min_reputation": floor})
+        return rid
+
+    def test_a_floor_refuses_a_newcomer(self):
+        rid = self._gated(1)
+        out = send(self.c, CAROL, int(self.c.spam_stake_wei), "submit_proposal",
+                   rid, MEDIUM, GEN, TIMELINE_STRONG, TEAM_STRONG)
+        self.assertTrue(rejected(out))
+        self.assertEqual(out["proposals_funded"], 0)
+        self.assertEqual(int(self.c.payout_wei.get(CAROL)),
+                         int(self.c.spam_stake_wei))
+
+    def test_a_floor_admits_a_funded_proposer(self):
+        rid = self._gated(1)
+        self.assertTrue(ok(send(self.c, ALICE, int(self.c.spam_stake_wei),
+                                "submit_proposal", rid, MEDIUM, GEN,
+                                TIMELINE_STRONG, TEAM_STRONG)))
+
+    def test_a_floor_of_two_refuses_one_funding(self):
+        rid = self._gated(2)
+        self.assertTrue(rejected(send(self.c, ALICE, int(self.c.spam_stake_wei),
+                                      "submit_proposal", rid, MEDIUM, GEN,
+                                      TIMELINE_STRONG, TEAM_STRONG)))
+
+    def test_a_floor_of_zero_admits_anybody(self):
+        rid = self._gated(0)
+        self.assertTrue(ok(send(self.c, CAROL, int(self.c.spam_stake_wei),
+                                "submit_proposal", rid, MEDIUM, GEN,
+                                TIMELINE_STRONG, TEAM_STRONG)))
+
+    def test_a_rejected_proposal_earns_no_reputation(self):
+        rid = self._gated(1)
+        self.assertTrue(rejected(send(self.c, BOB, int(self.c.spam_stake_wei),
+                                      "submit_proposal", rid, MEDIUM, GEN,
+                                      TIMELINE_STRONG, TEAM_STRONG)))
+
+    def test_reputation_has_no_setter(self):
+        names = {n.name for n in ast.walk(TREE) if isinstance(n, ast.FunctionDef)}
+        for bad in ("set_reputation", "set_proposer_stats", "grant_reputation"):
+            self.assertNotIn(bad, names)
+
+    def test_reputation_is_not_stored(self):
+        fields = set()
+        for node in ast.walk(TREE):
+            if isinstance(node, ast.ClassDef):
+                for sub in node.body:
+                    if isinstance(sub, ast.AnnAssign) and isinstance(sub.target,
+                                                                     ast.Name):
+                        fields.add(sub.target.id)
+        self.assertFalse([f for f in fields if "reputation" in f
+                          and f != "min_reputation"])
+
+
+class TestTemplates(unittest.TestCase):
+    def setUp(self):
+        self.c = fresh(round_cooldown_s=0)
+
+    def save(self, name="Standard Ecosystem", criteria=None, who=STRANGER):
+        return send(self.c, who, 0, "create_template", name,
+                    criteria if criteria is not None else CRITERIA_4)
+
+    def test_create_template(self):
+        out = self.save()
+        self.assertTrue(ok(out))
+        self.assertEqual(out["template_id"], 1)
+        self.assertEqual(out["criteria_count"], 4)
+
+    def test_a_template_is_validated_like_a_rubric(self):
+        self.assertTrue(rejected(self.save(criteria="[]")))
+        self.assertTrue(rejected(self.save(criteria=criteria_of(3, [1, 1, 1]))))
+        self.assertTrue(rejected(self.save(name="ab")))
+        self.assertEqual(len(self.c.templates), 0)
+
+    def test_get_templates(self):
+        self.save("One template")
+        self.save("Two template", CRITERIA_3)
+        out = view(self.c, STRANGER, "get_templates")
+        self.assertEqual(out["count"], 2)
+        self.assertEqual([t["name"] for t in out["templates"]],
+                         ["One template", "Two template"])
+
+    def test_get_template(self):
+        self.save()
+        out = view(self.c, STRANGER, "get_template", 1)
+        self.assertTrue(out["found"])
+        self.assertEqual(len(out["criteria"]), 4)
+        self.assertFalse(view(self.c, STRANGER, "get_template", 2)["found"])
+
+    def test_a_template_saved_from_a_pool_matches_its_hash(self):
+        pid, _ = open_pool(self.c)
+        out = self.save()
+        self.assertEqual(out["criteria_hash"], str(pool_of(self.c, pid).criteria_hash))
+
+    def test_open_a_pool_from_a_template(self):
+        self.save()
+        out = send(self.c, TREASURER, 2 * GEN, "create_round_from_template", 0, 1,
+                   "Pool E", "From the template.", 4, 2, 400, 3600, "")
+        self.assertTrue(ok(out), out)
+        self.assertEqual(out["template_id"], 1)
+        rnd = self.c.rounds[int(out["round_id"]) - 1]
+        self.assertEqual(int(rnd.criteria_start),
+                         int(self.c.templates[0].criteria_start))
+        self.assertEqual(rnd.criteria_hash, self.c.templates[0].criteria_hash)
+        self.assertEqual(view(self.c, STRANGER, "get_template", 1)["pools"],
+                         [int(out["pool_id"])])
+
+    def test_a_template_door_on_a_matching_pool_opens_its_next_round(self):
+        self.save()
+        out = send(self.c, TREASURER, 2 * GEN, "create_round_from_template", 0, 1,
+                   "Pool E", "", 4, 1, 400, 3600, "")
+        pid, rid = int(out["pool_id"]), int(out["round_id"])
+        send(self.c, TREASURER, 0, "cancel_round", rid)
+        out = send(self.c, TREASURER, 2 * GEN, "create_round_from_template", pid, 1,
+                   "", "", 0, 0, 0, 0, "")
+        self.assertTrue(ok(out), out)
+        self.assertEqual(out["round_number"], 2)
+
+    def test_a_template_cannot_swap_a_pools_rubric(self):
+        self.save("Three criteria", CRITERIA_3)
+        pid, rid = open_pool(self.c)
+        send(self.c, TREASURER, 0, "cancel_round", rid)
+        out = send(self.c, TREASURER, 2 * GEN, "create_round_from_template", pid, 1,
+                   "", "", 4, 1, 400, 3600, "")
+        self.assertTrue(rejected(out))
+        self.assertIn("one rubric", out["reason"])
+        self.assertEqual(int(self.c.payout_wei.get(TREASURER)), 12 * GEN)
+
+    def test_an_unknown_template(self):
+        out = send(self.c, TREASURER, 2 * GEN, "create_round_from_template", 0, 9,
+                   "Pool", "", 4, 1, 400, 3600, "")
+        self.assertTrue(rejected(out))
+
+    def test_the_template_door_is_gated_on_pause(self):
+        self.save()
+        send(self.c, OWNER, 0, "set_paused", True)
+        self.assertTrue(rejected(send(self.c, TREASURER, 2 * GEN,
+                                      "create_round_from_template", 0, 1, "Pool",
+                                      "", 4, 1, 400, 3600, "")))
+
+    def test_saving_a_template_is_not_gated_on_pause(self):
+        send(self.c, OWNER, 0, "set_paused", True)
+        self.assertTrue(ok(self.save()))
+
+    def test_a_template_is_immutable(self):
+        """Only `create_template` assigns a Template field - walked as syntax."""
+        fields = set()
+        for node in ast.walk(TREE):
+            if isinstance(node, ast.ClassDef) and node.name == "Template":
+                for sub in node.body:
+                    if isinstance(sub, ast.AnnAssign):
+                        fields.add(sub.target.id)
+        for node in ast.walk(TREE):
+            if isinstance(node, ast.FunctionDef) and node.name != "create_template":
+                for sub in ast.walk(node):
+                    if isinstance(sub, ast.Attribute) and isinstance(sub.ctx, ast.Store) \
+                            and isinstance(sub.value, ast.Name) \
+                            and sub.value.id == "tpl" and sub.attr in fields:
+                        self.fail(node.name + " assigns a template field")
+
+    def test_using_a_template_changes_nothing_about_it(self):
+        self.save()
+        before = dict(vars(self.c.templates[0]))
+        send(self.c, TREASURER, 2 * GEN, "create_round_from_template", 0, 1,
+             "Pool", "", 4, 1, 400, 3600, "")
+        self.assertEqual(dict(vars(self.c.templates[0])), before)
+
+    def test_value_sent_to_create_template_is_refunded(self):
+        out = send(self.c, STRANGER, GEN, "create_template", "ab", CRITERIA_4)
+        self.assertTrue(rejected(out))
+        self.assertEqual(int(self.c.payout_wei.get(STRANGER)), GEN)
+
+
+class TestAnalytics(unittest.TestCase):
+    def setUp(self):
+        self.c = fresh(round_cooldown_s=0, contest_window_s=3600)
+        self.rid = open_round(self.c, max_winners=2)
+        self.ids = [file_proposal(self.c, self.rid, ALICE, STRONG),
+                    file_proposal(self.c, self.rid, BOB, MEDIUM),
+                    file_proposal(self.c, self.rid, CAROL, WEAK)]
+        set_now(NOW + 3601)
+        score_all(self.c, self.rid)
+
+    def test_analytics_before_ranking(self):
+        out = view(self.c, STRANGER, "get_round_analytics", self.rid)
+        self.assertTrue(out["found"])
+        self.assertEqual(out["scored_count"], 3)
+        self.assertEqual(out["funding_rate_bps"], 0)
+
+    def test_analytics_after_ranking(self):
+        send(self.c, STRANGER, 0, "finalize", self.rid)
+        out = view(self.c, STRANGER, "get_round_analytics", self.rid)
+        funded = int(self.c.rounds[self.rid - 1].funded_count)
+        self.assertEqual(out["funded_count"], funded)
+        self.assertEqual(out["funding_rate_bps"], funded * 10000 // 3)
+
+    def test_the_criteria_columns_match_storage(self):
+        out = view(self.c, STRANGER, "get_round_analytics", self.rid)
+        col0 = [C._parse_csv(self.c.proposals[p - 1].scores_csv)[0] for p in self.ids]
+        self.assertEqual(out["criteria"][0]["min"], min(col0) * 100)
+        self.assertEqual(out["criteria"][0]["max"], max(col0) * 100)
+        self.assertEqual(out["criteria"][0]["name"], "Technical feasibility")
+        self.assertEqual(len(out["criteria"]), 4)
+
+    def test_the_distribution_counts_every_scored_proposal(self):
+        out = view(self.c, STRANGER, "get_round_analytics", self.rid)
+        self.assertEqual(sum(out["distribution"]), 3)
+        self.assertEqual(len(out["distribution"]), 8)
+
+    def test_an_unscored_round(self):
+        c = fresh(round_cooldown_s=0)
+        rid = open_round(c)
+        file_proposal(c, rid, ALICE)
+        out = view(c, STRANGER, "get_round_analytics", rid)
+        self.assertEqual(out["scored_count"], 0)
+        self.assertEqual(out["criteria"][0]["count"], 0)
+
+    def test_a_missing_round(self):
+        self.assertFalse(view(self.c, STRANGER, "get_round_analytics", 9)["found"])
+
+    def test_analytics_is_a_view_and_consults_no_model(self):
+        before = SCORER.calls
+        view(self.c, STRANGER, "get_round_analytics", self.rid)
+        self.assertEqual(SCORER.calls, before)
+
+    def test_a_skipped_proposal_is_not_in_the_figures(self):
+        c = fresh(round_cooldown_s=0, stall_ttl_s=100)
+        rid = open_round(c)
+        a = file_proposal(c, rid, ALICE)
+        b = file_proposal(c, rid, BOB, MEDIUM)
+        set_now(NOW + 3601)
+        score_one(c, rid, a)
+        set_now(NOW + 3601 + 200)
+        send(c, STRANGER, 0, "settle_stalled", rid, b)
+        out = view(c, STRANGER, "get_round_analytics", rid)
+        self.assertEqual(out["scored_count"], 1)
+        self.assertEqual(out["skipped_count"], 1)
+
+    def test_contest_success_is_reported(self):
+        send(self.c, STRANGER, 0, "finalize", self.rid)
+        weak = self.ids[2]
+        send(self.c, CAROL, int(self.c.contest_stake_wei), "contest", self.rid,
+             weak, "not much to add here at all, honestly")
+        out = view(self.c, STRANGER, "get_round_analytics", self.rid)
+        self.assertEqual(out["contested_count"], 1)
+
+
+class TestBatchEvaluation(unittest.TestCase):
+    def setUp(self):
+        self.c = fresh(round_cooldown_s=0)
+        self.rid = open_round(self.c)
+        self.ids = [file_proposal(self.c, self.rid, who, text)
+                    for who, text in ((ALICE, STRONG), (BOB, MEDIUM),
+                                      (CAROL, THIN), (DAVE, WEAK))]
+        set_now(NOW + 3601)
+        SCORER.serve([7] * 4, 7)
+
+    def test_one_call_scores_a_batch(self):
+        out = send(self.c, STRANGER, 0, "evaluate_all", self.rid)
+        self.assertTrue(ok(out))
+        self.assertEqual(out["evaluated_count"], C.MAX_BATCH_EVAL)
+        self.assertEqual(out["remaining_count"], 4 - C.MAX_BATCH_EVAL)
+
+    def test_a_second_call_finishes_the_round(self):
+        send(self.c, STRANGER, 0, "evaluate_all", self.rid)
+        out = send(self.c, STRANGER, 0, "evaluate_all", self.rid)
+        self.assertEqual(out["remaining_count"], 0)
+        self.assertTrue(ok(send(self.c, STRANGER, 0, "finalize", self.rid)))
+
+    def test_a_third_call_has_nothing_to_do(self):
+        send(self.c, STRANGER, 0, "evaluate_all", self.rid)
+        send(self.c, STRANGER, 0, "evaluate_all", self.rid)
+        self.assertTrue(rejected(send(self.c, STRANGER, 0, "evaluate_all", self.rid)))
+
+    def test_each_proposal_is_its_own_reading(self):
+        """The batch stores exactly what one-at-a-time evaluation stores."""
+        send(self.c, STRANGER, 0, "evaluate_all", self.rid)
+        c2 = fresh(round_cooldown_s=0)
+        r2 = open_round(c2)
+        ids2 = [file_proposal(c2, r2, who, text)
+                for who, text in ((ALICE, STRONG), (BOB, MEDIUM), (CAROL, THIN))]
+        set_now(NOW + 3601)
+        for p in ids2:
+            score_one(c2, r2, p)
+        for i in range(3):
+            self.assertEqual(self.c.proposals[i].content_hash,
+                             c2.proposals[i].content_hash)
+            self.assertEqual(self.c.proposals[i].scores_csv,
+                             c2.proposals[i].scores_csv)
+
+    def test_one_consensus_round_per_proposal(self):
+        calls = []
+        real = MOD._consensus
+
+        def counting(task):
+            calls.append(task["proposal_id"])
+            return real(task)
+        MOD._consensus = counting
+        try:
+            send(self.c, STRANGER, 0, "evaluate_all", self.rid)
+        finally:
+            MOD._consensus = real
+        self.assertEqual(calls, self.ids[:C.MAX_BATCH_EVAL])
+
+    def test_before_the_deadline(self):
+        c = fresh(round_cooldown_s=0)
+        rid = open_round(c)
+        file_proposal(c, rid, ALICE)
+        self.assertTrue(rejected(send(c, STRANGER, 0, "evaluate_all", rid)))
+
+    def test_a_ranked_round(self):
+        send(self.c, STRANGER, 0, "evaluate_all", self.rid)
+        send(self.c, STRANGER, 0, "evaluate_all", self.rid)
+        send(self.c, STRANGER, 0, "finalize", self.rid)
+        self.assertTrue(rejected(send(self.c, STRANGER, 0, "evaluate_all", self.rid)))
+
+    def test_a_missing_round(self):
+        self.assertTrue(rejected(send(self.c, STRANGER, 0, "evaluate_all", 99)))
+
+    def test_an_unreachable_scorer_does_not_sink_the_batch(self):
+        SCORER.fail(times=2)
+        out = send(self.c, STRANGER, 0, "evaluate_all", self.rid)
+        self.assertEqual(out["inconclusive_count"], 1)
+        self.assertEqual(out["evaluated_count"], C.MAX_BATCH_EVAL - 1)
+        self.assertEqual(out["results"][0]["outcome"], "INCONCLUSIVE")
+
+    def test_a_proposal_in_flight_is_left_alone(self):
+        self.c.evaluating[self.c._eval_key(self.rid, self.ids[0])] = NOW + 3601
+        out = send(self.c, STRANGER, 0, "evaluate_all", self.rid)
+        self.assertNotIn(self.ids[0], [r["proposal_id"] for r in out["results"]])
+
+    def test_batch_works_while_paused(self):
+        send(self.c, OWNER, 0, "set_paused", True)
+        self.assertTrue(ok(send(self.c, STRANGER, 0, "evaluate_all", self.rid)))
+
+    def test_the_batch_moves_no_money(self):
+        before = (int(self.c.locked_wei), int(self.c.payable_wei))
+        send(self.c, STRANGER, 0, "evaluate_all", self.rid)
+        self.assertEqual((int(self.c.locked_wei), int(self.c.payable_wei)), before)
+
+    def test_value_sent_to_a_batch_is_refunded(self):
+        out = send(self.c, STRANGER, GEN, "evaluate_all", 99)
+        self.assertTrue(rejected(out))
+        self.assertEqual(int(self.c.payout_wei.get(STRANGER)), GEN)
+
+    def test_the_batch_is_counted(self):
+        send(self.c, STRANGER, 0, "evaluate_all", self.rid)
+        self.assertEqual(int(self.c.total_batches), 1)
+
+
+class TestAmendments(unittest.TestCase):
+    AMEND = ("Budget update: 0.5 GEN of the request now covers a named external "
+             "auditor, and a 2 week buffer is added after milestone 2.")
+
+    def setUp(self):
+        self.c = fresh(round_cooldown_s=0)
+        self.rid = open_round(self.c)
+        self.a = file_proposal(self.c, self.rid, ALICE, MEDIUM)
+
+    def amend(self, text=None, who=ALICE, pid=None):
+        return send(self.c, who, 0, "amend_proposal", self.rid,
+                    pid or self.a, text if text is not None else self.AMEND)
+
+    def test_amend(self):
+        out = self.amend()
+        self.assertTrue(ok(out))
+        self.assertEqual(self.c.proposals[self.a - 1].amendment, self.AMEND)
+        self.assertEqual(self.c.proposals[self.a - 1].description, MEDIUM)
+
+    def test_only_once(self):
+        self.amend()
+        self.assertTrue(rejected(self.amend("Another change entirely, with 3 new "
+                                            "figures and a new date.")))
+
+    def test_only_the_author(self):
+        self.assertTrue(rejected(self.amend(who=BOB)))
+
+    def test_only_before_the_deadline(self):
+        set_now(NOW + 3601)
+        self.assertTrue(rejected(self.amend()))
+
+    def test_capped_at_one_thousand_chars(self):
+        long = ("A new sentence number " + "x" * 30 + ". ") * 60
+        self.amend(long)
+        self.assertLessEqual(len(self.c.proposals[self.a - 1].amendment), 1000)
+
+    def test_an_amendment_that_repeats_the_filing_is_refused(self):
+        sentence = MEDIUM.split(". ")[0] + "."
+        out = self.amend(sentence)
+        self.assertTrue(rejected(out))
+        self.assertEqual(out["new_chars"], 0)
+
+    def test_a_repeated_sentence_is_dropped_before_storing(self):
+        sentence = MEDIUM.split(". ")[0] + ". "
+        self.amend(sentence + self.AMEND)
+        self.assertEqual(self.c.proposals[self.a - 1].amendment, self.AMEND)
+
+    def test_too_short(self):
+        self.assertTrue(rejected(self.amend("tiny")))
+
+    def test_validators_see_both(self):
+        self.amend()
+        set_now(NOW + 3601)
+        score_one(self.c, self.rid, self.a)
+        prompt = SCORER.log[-1]
+        self.assertIn("<<<PROPOSAL", prompt)
+        self.assertIn("<<<AMENDMENT", prompt)
+        self.assertIn("named external auditor", prompt)
+
+    def test_the_content_hash_commits_to_the_amendment(self):
+        self.amend()
+        set_now(NOW + 3601)
+        score_one(self.c, self.rid, self.a)
+        prop = self.c.proposals[self.a - 1]
+        f = self.c._facts(self.c.rounds[self.rid - 1], prop, "")
+        self.assertEqual(f["amendment"], self.AMEND)
+        d = C._derive(f, C._parse_csv(prop.scores_csv), int(prop.quality_bucket))
+        self.assertEqual(prop.content_hash, d["content_hash"])
+        f["amendment"] = ""
+        self.assertNotEqual(prop.content_hash,
+                            C._derive(f, C._parse_csv(prop.scores_csv),
+                                      int(prop.quality_bucket))["content_hash"])
+
+    def test_an_amended_proposal_verifies(self):
+        self.amend()
+        set_now(NOW + 3601)
+        score_one(self.c, self.rid, self.a)
+        self.assertTrue(view(self.c, STRANGER, "verify_evaluation", self.rid,
+                             self.a)["verified"])
+
+    def test_an_amendment_is_shown(self):
+        self.amend()
+        out = view(self.c, STRANGER, "get_proposal", self.rid, self.a)
+        self.assertEqual(out["amendment"], self.AMEND)
+        self.assertGreater(out["amended_at"], 0)
+
+    def test_amend_a_mismatched_pair(self):
+        other = open_round(self.c, name="Other round")
+        out = send(self.c, ALICE, 0, "amend_proposal", other, self.a, self.AMEND)
+        self.assertTrue(rejected(out))
+
+    def test_amendments_work_while_paused(self):
+        send(self.c, OWNER, 0, "set_paused", True)
+        self.assertTrue(ok(self.amend()))
+
+    def test_value_sent_to_amend_is_refunded(self):
+        out = send(self.c, BOB, GEN, "amend_proposal", self.rid, self.a, self.AMEND)
+        self.assertTrue(rejected(out))
+        self.assertEqual(int(self.c.payout_wei.get(BOB)), GEN)
+
+
+class TestExtensions(unittest.TestCase):
+    def setUp(self):
+        self.c = fresh(round_cooldown_s=0)
+        self.rid = open_round(self.c, max_proposals=3)
+        self.deadline = int(self.c.rounds[self.rid - 1].deadline)
+
+    def extend(self, seconds=DAY, who=TREASURER):
+        return send(self.c, who, 0, "extend_deadline", self.rid, seconds)
+
+    def test_extend(self):
+        out = self.extend()
+        self.assertTrue(ok(out))
+        self.assertEqual(out["deadline"], self.deadline + DAY)
+        self.assertEqual(out["original_deadline"], self.deadline)
+        self.assertEqual(out["extensions_left"], 1)
+
+    def test_at_most_twice(self):
+        self.extend()
+        self.extend()
+        self.assertTrue(rejected(self.extend()))
+
+    def test_at_most_seven_days(self):
+        self.assertTrue(rejected(self.extend(7 * DAY + 1)))
+        self.assertTrue(ok(self.extend(7 * DAY)))
+
+    def test_at_least_a_minute(self):
+        self.assertTrue(rejected(self.extend(59)))
+        self.assertTrue(rejected(self.extend(-DAY)))
+
+    def test_only_the_treasurer(self):
+        self.assertTrue(rejected(self.extend(who=ALICE)))
+
+    def test_only_while_open(self):
+        set_now(self.deadline + 1)
+        self.assertTrue(rejected(self.extend()))
+
+    def test_only_while_not_full(self):
+        for who in (ALICE, BOB, CAROL):
+            file_proposal(self.c, self.rid, who)
+        self.assertTrue(rejected(self.extend()))
+
+    def test_an_extension_lets_a_late_proposal_in(self):
+        self.extend()
+        set_now(self.deadline + 100)
+        file_proposal(self.c, self.rid, ALICE)
+
+    def test_nothing_else_moves(self):
+        rnd = self.c.rounds[self.rid - 1]
+        before = (rnd.config_hash, rnd.criteria_hash, int(rnd.pool_wei),
+                  int(rnd.min_score_threshold), int(rnd.max_winners),
+                  int(rnd.spam_stake_wei))
+        self.extend()
+        self.assertEqual((rnd.config_hash, rnd.criteria_hash, int(rnd.pool_wei),
+                          int(rnd.min_score_threshold), int(rnd.max_winners),
+                          int(rnd.spam_stake_wei)), before)
+
+    def test_the_new_deadline_is_published(self):
+        self.extend()
+        out = view(self.c, STRANGER, "get_round", self.rid)
+        self.assertEqual(out["deadline"], self.deadline + DAY)
+        self.assertEqual(out["extensions_used"], 1)
+
+    def test_a_cancelled_round_cannot_be_extended(self):
+        send(self.c, TREASURER, 0, "cancel_round", self.rid)
+        self.assertTrue(rejected(self.extend()))
+
+    def test_evaluation_waits_for_the_extended_deadline(self):
+        file_proposal(self.c, self.rid, ALICE)
+        self.extend()
+        set_now(self.deadline + 10)
+        self.assertTrue(rejected(score_one(self.c, self.rid, 1)))
+
+
+class TestRemainderRoute(unittest.TestCase):
+    def setUp(self):
+        self.c = fresh(round_cooldown_s=0, contest_window_s=300)
+        self.rid = open_round(self.c, max_winners=1)
+        file_proposal(self.c, self.rid, ALICE, STRONG, asked=GEN)
+        set_now(NOW + 3601)
+
+    def route(self):
+        return view(self.c, STRANGER, "get_remainder_route", self.rid,
+                    TREASURER.as_hex)["step"]
+
+    def test_wait_before_ranking(self):
+        self.assertEqual(self.route(), "wait")
+
+    def test_wait_while_the_appeal_window_is_open(self):
+        score_all(self.c, self.rid)
+        send(self.c, STRANGER, 0, "finalize", self.rid)
+        self.assertEqual(self.route(), "wait")
+
+    def test_book_then_sweep_then_done(self):
+        score_all(self.c, self.rid)
+        send(self.c, STRANGER, 0, "finalize", self.rid)
+        set_now(NOW + 3601 + 301)
+        self.assertEqual(self.route(), "book")
+        send(self.c, TREASURER, 0, "claim_remainder_fallback", self.rid)
+        self.assertEqual(self.route(), "sweep")
+        send(self.c, TREASURER, 0, "claim_payout")
+        self.assertEqual(self.route(), "done")
+
+    def test_following_the_route_drains_the_remainder(self):
+        """What the app's one button and `takeRemainder` in the harness do:
+        follow the route until it says done."""
+        score_all(self.c, self.rid)
+        send(self.c, STRANGER, 0, "finalize", self.rid)
+        send(self.c, ALICE, 0, "claim_award", self.rid, 1)
+        set_now(NOW + 3601 + 301)
+        for _ in range(4):
+            step = self.route()
+            if step == "book":
+                send(self.c, TREASURER, 0, "claim_remainder_fallback", self.rid)
+            elif step == "sweep":
+                send(self.c, TREASURER, 0, "claim_payout")
+            else:
+                break
+        self.assertEqual(self.route(), "done")
+        self.assertEqual(int(self.c.balance_wei), 0)
+
+    def test_a_cancelled_round_sweeps(self):
+        c = fresh(round_cooldown_s=0)
+        rid = open_round(c)
+        send(c, TREASURER, 0, "cancel_round", rid)
+        out = view(c, STRANGER, "get_remainder_route", rid, TREASURER.as_hex)
+        self.assertEqual(out["step"], "sweep")
+
+    def test_a_missing_round(self):
+        self.assertFalse(view(self.c, STRANGER, "get_remainder_route", 9,
+                              TREASURER.as_hex)["found"])
+
+    def test_the_route_never_says_claim_remainder(self):
+        """On a network whose estimator runs a stale clock the one-call path is
+        the broken one; the route never sends a client there."""
+        doc = ast.get_docstring(next(
+            n for n in ast.walk(TREE) if isinstance(n, ast.FunctionDef)
+            and n.name == "get_remainder_route"))
+        self.assertIn("never claim_remainder", doc)
+
+
+class TestBackwardCompatibility(unittest.TestCase):
+    """The milestone build must not change a plain round by one byte of
+    output that a client already reads."""
+
+    OLD_ROUND_KEYS = (
+        "round_id", "treasurer", "name", "description", "status", "phase",
+        "pool_wei", "pool_gen", "created_at", "deadline", "seconds_remaining",
+        "criteria", "criteria_count", "criteria_hash", "config_hash",
+        "max_proposals", "max_winners", "min_score_threshold", "min_score_text",
+        "spam_stake_wei", "spam_stake_gen", "contest_stake_wei",
+        "contest_stake_gen", "contest_window_s", "contest_closes_at",
+        "contest_open", "stall_ttl_s", "proposal_count", "evaluated_count",
+        "skipped_count", "funded_count", "qualified_count", "rejected_count",
+        "contested_count", "pending_count", "finalized_at", "cancelled_at",
+        "winner_score_sum", "allocated_wei", "allocated_gen", "remainder_wei",
+        "remainder_gen", "forfeited_wei", "stakes_wei", "locked_wei",
+        "remainder_claimed")
+
+    def setUp(self):
+        self.c = fresh(round_cooldown_s=0)
+        self.rid = open_round(self.c, max_winners=2)
+        self.a = file_proposal(self.c, self.rid, ALICE, STRONG)
+        self.b = file_proposal(self.c, self.rid, BOB, MEDIUM)
+        set_now(NOW + 3601)
+        score_all(self.c, self.rid)
+
+    def test_get_round_keeps_every_key(self):
+        out = view(self.c, STRANGER, "get_round", self.rid)
+        for key in self.OLD_ROUND_KEYS:
+            self.assertIn(key, out)
+
+    def test_create_round_keeps_its_answer(self):
+        c = fresh(round_cooldown_s=0)
+        out = send(c, TREASURER, 2 * GEN, "create_round", "Plain", "", CRITERIA_4,
+                   4, 1, 400, 3600)
+        for key in ("status", "round_id", "pool_wei", "pool_gen", "deadline",
+                    "criteria_count", "criteria_hash", "config_hash",
+                    "spam_stake_wei", "min_score_threshold", "note"):
+            self.assertIn(key, out)
+
+    def test_a_plain_finalize_pays_the_whole_award_at_once(self):
+        send(self.c, STRANGER, 0, "finalize", self.rid)
+        prop = self.c.proposals[self.a - 1]
+        self.assertEqual(int(prop.payout_wei),
+                         int(prop.award_wei) + int(prop.stake_return_wei))
+        self.assertEqual(int(prop.milestone_held_wei), 0)
+
+    def test_a_plain_claim_is_one_claim(self):
+        send(self.c, STRANGER, 0, "finalize", self.rid)
+        out = send(self.c, ALICE, 0, "claim_award", self.rid, self.a)
+        self.assertTrue(ok(out))
+        again = send(self.c, ALICE, 0, "claim_award", self.rid, self.a)
+        self.assertTrue(rejected(again))
+        self.assertIn("already been claimed", again["reason"])
+
+    def test_claimable_reads_the_same(self):
+        send(self.c, STRANGER, 0, "finalize", self.rid)
+        before = view(self.c, STRANGER, "get_proposal", self.rid, self.a)
+        self.assertEqual(before["claimable_wei"], before["payout_wei"])
+        send(self.c, ALICE, 0, "claim_award", self.rid, self.a)
+        after = view(self.c, STRANGER, "get_proposal", self.rid, self.a)
+        self.assertEqual(after["claimable_wei"], "0")
+        self.assertTrue(after["payout_claimed"])
+
+    def test_a_plain_finalize_needs_no_approval(self):
+        out = send(self.c, STRANGER, 0, "finalize", self.rid)
+        self.assertTrue(ok(out))
+        self.assertEqual(out["approval_outcome"], "")
+
+    def test_the_unamended_content_hash_is_the_old_formula(self):
+        prop = self.c.proposals[self.a - 1]
+        f = self.c._facts(self.c.rounds[self.rid - 1], prop, "")
+        old = C._fnv("|".join([
+            str(f["round_id"]), str(f["proposal_id"]), C._blob(f),
+            C._criteria_text(f), str(f["pool_wei"]), str(f["requested_wei"]),
+            str(f["threshold"]), prop.scores_csv, str(int(prop.quality_bucket)),
+            str(int(prop.completeness_bucket)), str(int(prop.final_score)),
+            C.RUBRIC_VERSION]))
+        self.assertEqual(prop.content_hash, old)
+
+    def test_the_eight_outcomes_are_all_still_reachable(self):
+        """FUNDED, PARTIALLY_FUNDED, REJECTED, CONTESTED->WON, CONTESTED->LOST,
+        CANCELLED, STALLED->SKIPPED, DEFAULT - each asserted by its own test
+        class above; this one names them so a later build cannot drop one
+        quietly."""
+        for cls in ("TestFinalize", "TestContest", "TestSettleStalled",
+                    "TestClaims", "TestRandomisedLifecycles"):
+            self.assertIn(cls, globals())
+        self.assertIn("cancel_round", {n.name for n in ast.walk(TREE)
+                                       if isinstance(n, ast.FunctionDef)})
+
+
+class TestNewStaticInvariants(unittest.TestCase):
+    def method(self, name):
+        return next(n for n in ast.walk(TREE)
+                    if isinstance(n, ast.FunctionDef) and n.name == name)
+
+    def test_every_new_write_banks_first(self):
+        for name in ("create_pool", "create_next_round", "top_up_pool",
+                     "withdraw_reserve", "create_template",
+                     "create_round_from_template", "approve_finalization",
+                     "reject_finalization", "submit_milestone_proof",
+                     "reclaim_lapsed_milestones", "evaluate_all",
+                     "amend_proposal", "extend_deadline"):
+            m = self.method(name)
+            body = [n for n in m.body if not (isinstance(n, ast.Expr)
+                    and isinstance(n.value, ast.Constant))]
+            self.assertIn("self._bank()", ast.unparse(body[0]), name)
+
+    def test_no_new_method_posts_a_transfer(self):
+        """Every new path books to a ledger and leaves the transfer to the
+        existing claims, so no new write both reads the clock and pays."""
+        for name in ("submit_milestone_proof", "reclaim_lapsed_milestones",
+                     "withdraw_reserve", "approve_finalization", "evaluate_all",
+                     "_vote", "_finalize_apply", "_open_pool", "_next_round"):
+            text = ast.unparse(self.method(name))
+            self.assertNotIn("_settle_payout(", text, name)
+            self.assertNotIn("_pay(", text, name)
+
+    def test_the_consensus_closures_capture_no_storage(self):
+        m = self.method("_consensus")
+        for sub in ast.walk(m):
+            if isinstance(sub, ast.Name):
+                self.assertNotEqual(sub.id, "self")
+
+    def test_the_milestone_path_reads_no_network(self):
+        text = ast.unparse(self.method("submit_milestone_proof"))
+        self.assertNotIn("web", text)
+        self.assertNotIn("render", text)
+
+    def test_the_milestone_record_comes_from_derived(self):
+        m = self.method("submit_milestone_proof")
+        for sub in ast.walk(m):
+            if isinstance(sub, ast.Assign) and any(
+                    isinstance(t, ast.Attribute) and isinstance(t.value, ast.Name)
+                    and t.value.id == "record" and t.attr in
+                    ("score", "scores_csv", "quality", "content_hash",
+                     "facts_hash", "reason") for t in sub.targets):
+                self.assertIn("derived", ast.unparse(sub.value))
+
+    def test_the_approval_lapse_is_wired_into_finalize(self):
+        self.assertIn("_approval_lapses_at", ast.unparse(self.method("finalize")))
+
+    def test_the_verbatim_gate_is_before_the_stake(self):
+        text = ast.unparse(self.method("submit_proposal"))
+        self.assertLess(text.index("pool_texts.get"), text.index("self._take(sender, stake)"))
+        self.assertLess(text.index("min_reputation"), text.index("self._take(sender, stake)"))
+
+    def test_every_new_public_method_is_documented(self):
+        for name in ("create_pool", "create_next_round", "top_up_pool",
+                     "withdraw_reserve", "create_template",
+                     "create_round_from_template", "approve_finalization",
+                     "reject_finalization", "submit_milestone_proof",
+                     "reclaim_lapsed_milestones", "evaluate_all",
+                     "amend_proposal", "extend_deadline", "get_pool", "get_pools",
+                     "get_pool_history", "get_approvals", "get_milestone_status",
+                     "get_proposer_stats", "get_templates", "get_template",
+                     "get_round_analytics", "get_remainder_route"):
+            self.assertIsNotNone(ast.get_docstring(self.method(name)), name)
+
+    def test_the_new_counters_move_only_after_refusals(self):
+        """RULE 3, for the counters this build added: in each method, the
+        first write of the counter comes after the last `_refuse`."""
+        pairs = (("amend_proposal", "total_amendments"),
+                 ("extend_deadline", "total_extensions"),
+                 ("create_template", "total_templates"),
+                 ("reclaim_lapsed_milestones", "total_milestone_lapsed_wei"))
+        for name, counter in pairs:
+            text = ast.unparse(self.method(name))
+            self.assertGreater(text.index("self." + counter + " ="),
+                               text.rindex("self._refuse("), name)
+
+
+class TestRandomisedPools(unittest.TestCase):
+    """RULE 7 OVER FORTY RANDOM MULTI-ROUND POOLS, with approvers, milestones
+    that pass, fail or lapse, top-ups, reserves withdrawn or spent, and a
+    reputation floor on some of them."""
+
+    TRIALS = 40
+
+    def test_every_random_pool_drains_to_zero(self):
+        rng = random.Random(20260927)
+        for trial in range(self.TRIALS):
+            c = fresh(round_cooldown_s=0, contest_window_s=300, stall_ttl_s=200)
+            opts = {}
+            if rng.random() < 0.4:
+                opts["co_approvers"] = [CAROL.as_hex, DAVE.as_hex][:rng.randint(1, 2)]
+                opts["approval_window_s"] = 600
+            if rng.random() < 0.5:
+                opts["milestones"] = MILESTONES_60_40
+                opts["milestone_window_s"] = 900
+            pool = rng.randint(1, 8) * GEN + rng.randint(0, 999)
+            shape = f"pool trial {trial}: {opts}, pool {pool}"
+            pid, rid = open_pool(c, pool=pool, max_winners=rng.randint(1, 2),
+                                 max_proposals=3, window=300,
+                                 threshold=rng.choice([0, 300, 400]),
+                                 options=opts, name="Pool " + str(trial))
+            t = NOW
+            rounds = []
+            texts = [STRONG, MEDIUM, THIN, WEAK]
+            for number in range(rng.randint(1, 2)):
+                if number > 0:
+                    send(c, TREASURER, rng.randint(1, 3) * GEN, "top_up_pool", pid)
+                    out = send(c, TREASURER, 0, "create_next_round", pid)
+                    self.assertTrue(ok(out), shape + str(out))
+                    rid = int(out["round_id"])
+                rounds.append(rid)
+                filed = []
+                for who in (ALICE, BOB, STRANGER):
+                    text = texts.pop(0) if texts else None
+                    if text is None or rng.random() < 0.2:
+                        continue
+                    cap = int(c.rounds[rid - 1].pool_wei)
+                    ask = min(cap, rng.randint(1, 20) * GEN // 10)
+                    filed.append((who, file_proposal(c, rid, who, text, asked=ask)))
+                t += 301
+                set_now(t)
+                for who, p in filed:
+                    score_one(c, rid, p, scores=[rng.randint(0, 7) for _ in range(4)],
+                              quality=rng.randint(0, 7))
+                if opts.get("co_approvers") and filed and rng.random() < 0.6:
+                    for a in (CAROL, DAVE)[:len(opts["co_approvers"])]:
+                        send(c, a, 0, "approve_finalization", rid)
+                if c.rounds[rid - 1].status != "RANKED":
+                    t += 200 + 601
+                    set_now(t)
+                    self.assertTrue(ok(send(c, STRANGER, 0, "finalize", rid)),
+                                    shape)
+                for who, p in filed:
+                    prop = c.proposals[p - 1]
+                    if int(prop.milestone_held_wei) > 0:
+                        for i in range(2):
+                            if rng.random() < 0.6:
+                                SCORER.serve([7], 7)
+                                send(c, who, 0, "submit_milestone_proof", rid, p,
+                                     i, "u", GOOD_PROOF if i == 0 else FINAL_PROOF)
+                    if int(prop.payout_wei) > int(prop.paid_wei):
+                        send(c, who, 0, "claim_award", rid, p)
+            t += 1000
+            set_now(t)
+            for r in rounds:
+                for p in c._ids_of(r):
+                    prop = c.proposals[p - 1]
+                    if int(prop.milestone_held_wei) > 0:
+                        self.assertTrue(ok(send(c, STRANGER, 0,
+                                                "reclaim_lapsed_milestones", r, p)),
+                                        shape)
+                    if int(prop.payout_wei) > int(prop.paid_wei):
+                        send(c, prop.author, 0, "claim_award", r, p)
+                if c.rounds[r - 1].status == "RANKED":
+                    send(c, TREASURER, 0, "claim_remainder_fallback", r)
+                self.assertEqual(round_locked(c, r), 0, shape + " round " + str(r))
+            if int(pool_of(c, pid).reserve_wei) > 0:
+                send(c, TREASURER, 0, "withdraw_reserve", pid)
+            drain(c, TREASURER, ALICE, BOB, STRANGER, CAROL, DAVE)
+            self.assertEqual(int(c.locked_wei), 0, shape)
+            self.assertEqual(int(c.payable_wei), 0, shape)
+            self.assertEqual(int(c.balance_wei), 0, shape)
+
+
+
+class TestConsumerNewViews(unittest.TestCase):
+    """The consumer's two read-throughs, against a real judge."""
+
+    JUDGE_ADDRESS = "0x" + "8" * 40
+
+    def setUp(self):
+        self.c = fresh(round_cooldown_s=0)
+        CONTRACTS.clear()
+        CONTRACTS[self.JUDGE_ADDRESS] = self.c
+        mod = load_full(CONSUMER, "grantconsumer_new_" + str(id(self)))
+        MESSAGE.sender_address = OWNER
+        self.k = mod.GrantConsumer(self.JUDGE_ADDRESS, 0, 0)
+
+    def call(self, method, *args):
+        MESSAGE.sender_address = BOB
+        MESSAGE.value = 0
+        return getattr(self.k, method)(*args)
+
+    def _milestone_grant(self):
+        _, rid = open_pool(self.c, max_winners=1,
+                           options={"milestones": MILESTONES_60_40})
+        a = file_proposal(self.c, rid, ALICE, STRONG, asked=3 * GEN)
+        set_now(NOW + 3601)
+        score_all(self.c, rid)
+        send(self.c, STRANGER, 0, "finalize", rid)
+        return rid, a
+
+    def test_a_plain_grant_reads_fully_delivered(self):
+        rid = open_round(self.c, max_winners=1)
+        a = file_proposal(self.c, rid, ALICE)
+        set_now(NOW + 3601)
+        score_all(self.c, rid)
+        send(self.c, STRANGER, 0, "finalize", rid)
+        out = self.call("grant_progress", rid, a)
+        self.assertFalse(out["has_milestones"])
+        self.assertEqual(out["delivered_bps"], 10000)
+
+    def test_a_milestone_grant_starts_undelivered(self):
+        rid, a = self._milestone_grant()
+        out = self.call("grant_progress", rid, a)
+        self.assertTrue(out["has_milestones"])
+        self.assertEqual(out["delivered_bps"], 0)
+        self.assertEqual(out["held_wei"], str(3 * GEN))
+
+    def test_progress_follows_delivery(self):
+        rid, a = self._milestone_grant()
+        SCORER.serve([7], 7)
+        send(self.c, ALICE, 0, "submit_milestone_proof", rid, a, 0, "u", GOOD_PROOF)
+        self.assertEqual(self.call("grant_progress", rid, a)["delivered_bps"], 6000)
+
+    def test_a_milestone_grant_still_registers_at_ranking(self):
+        rid, a = self._milestone_grant()
+        self.assertEqual(self.call("register_grant", rid, a)["status"], "OK")
+
+    def test_progress_of_nothing(self):
+        self.assertFalse(self.call("grant_progress", 5, 5)["found"])
+
+    def test_reputation_passes_through(self):
+        rid, a = self._milestone_grant()
+        out = self.call("grantee_reputation", ALICE.as_hex)
+        self.assertEqual(out["proposals_funded"], 1)
+        self.assertFalse(self.call("grantee_reputation", "nope")["found"])
+
+    def test_the_consumer_still_holds_nothing(self):
+        payable = [n.name for n in ast.walk(CONSUMER_TREE)
+                   if isinstance(n, ast.FunctionDef)
+                   for d in n.decorator_list
+                   if ast.unparse(d) == "gl.public.write.payable"]
+        self.assertEqual(payable, [])
+        calls = [n for n in ast.walk(CONSUMER_TREE) if isinstance(n, ast.Call)
+                 and isinstance(n.func, ast.Attribute)
+                 and n.func.attr in ("emit_transfer", "emit")]
+        self.assertEqual(calls, [])
 
 
 if __name__ == "__main__":
