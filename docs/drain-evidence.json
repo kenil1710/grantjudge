@@ -1,0 +1,75 @@
+{
+  "read_at": "2026-09-27T07:38:40.156Z",
+  "address": "0xd7DC916BF665A1DAd25FbA7e6544B233B2Ea3DDa",
+  "stats": {
+    "amendments": 1,
+    "balance_wei": "0",
+    "batches": 8,
+    "cancelled_rounds": 2,
+    "chain_balance_wei": "39900000000000000000",
+    "contests": 2,
+    "contests_won": 1,
+    "evaluating_rounds": 0,
+    "evaluation_attempts": 22,
+    "evaluations": 22,
+    "extensions": 1,
+    "finalized_rounds": 11,
+    "funded_proposals": 17,
+    "identity": "balance_wei == locked_wei + payable_wei",
+    "inconclusive": 0,
+    "ledger_balanced": true,
+    "locked_wei": "0",
+    "milestone_lapsed_wei": "0",
+    "milestone_released_wei": "2000000000000000000",
+    "milestones_passed": 2,
+    "open_rounds": 0,
+    "owner": "0xfC5fd0367aCEc924B9a28c7847C8f9D81B4f906B",
+    "paused": false,
+    "payable_wei": "0",
+    "pending_proposals": 0,
+    "pools": 6,
+    "proposals": 23,
+    "qualified_proposals": 1,
+    "ranked_rounds": 0,
+    "refusals": 7,
+    "rejected_proposals": 4,
+    "rounds": 13,
+    "rubric_version": "1.0.0",
+    "scored_proposals": 0,
+    "skipped": 1,
+    "skipped_proposals": 1,
+    "templates": 1,
+    "total_awarded_gen": "25.330914937667944141",
+    "total_awarded_wei": "25330914937667944141",
+    "total_claimed_wei": "39900000000000000000",
+    "total_forfeited_wei": "600000000000000000",
+    "total_pool_gen": "37.00",
+    "total_pool_wei": "37000000000000000000",
+    "total_refunded_wei": "12269085062332055859",
+    "total_stakes_wei": "2300000000000000000",
+    "undelivered_wei": "39900000000000000000"
+  },
+  "checks": [
+    {
+      "ok": true,
+      "label": "round 11 (Q4 Ecosystem Fund) cancelled by its treasurer",
+      "detail": "4.000000 GEN back to the treasurer"
+    },
+    {
+      "ok": true,
+      "label": "treasurer2 swept",
+      "detail": "4.000000 GEN"
+    },
+    {
+      "ok": true,
+      "label": "Q10 · every pool settled — the contract's balance is exactly 0",
+      "detail": "balance 0 · locked 0 · payable 0 · pool reserves 0"
+    },
+    {
+      "ok": true,
+      "label": "the ledger identity holds",
+      "detail": "balance_wei == locked_wei + payable_wei"
+    }
+  ],
+  "reopened_round": 14
+}

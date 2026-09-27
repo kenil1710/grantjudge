@@ -427,7 +427,7 @@ because you never mention what anything costs" is a fix.
   and the adjectival one does not move at all.
 - **Source:** <https://github.com/kenil1710/grantjudge>
 
-915 offline tests — including a hundred and twenty randomised lifecycles and
+930 offline tests — including a hundred and twenty randomised lifecycles and
 forty randomised multi-round pools that each have to drain to exactly zero —
 and a cross-file audit that re-derives every number the repository quotes about
 itself. Two deployed instances of the same source: one enforcing the brief
@@ -552,7 +552,7 @@ On chain, a Security Audit Fund with two co-approvers:
 
 ```
 finalize                     REJECTED   needs 2 of its 2 co-approvers — or anyone may
-                                        finalize once the window lapses in 7287s
+                                        finalize once the window lapses in 6900s
 approver 1  approve          OK         1 / 2, not finalized
 approver 2  approve          OK         2 / 2 — the round is ranked in this transaction
                                         2 funded, 490:428 → 1.6013 : 1.3986 GEN
@@ -578,8 +578,8 @@ The match survives re-spacing and re-casing. It is a novelty test, not a
 substance test: a proposal rewritten in new words is new, and is read on its
 merits. The same honest limit the appeal's guard has.
 
-Across both rounds the pool's history reads 5 proposals, 3 funded and
-5.937 GEN distributed — summed from the rounds on every read rather than kept
+Across both rounds the pool's history reads 6 proposals, 4 funded and
+6.531 GEN distributed — summed from the rounds on every read rather than kept
 in a counter that could drift from them.
 
 ---
@@ -594,7 +594,7 @@ by that name ever appears.
 A Community Fund with a floor of one funded proposal:
 
 ```
-pbuilder1  record: entered 2, funded 2, awarded 4.737 GEN, average 4.95  → admitted
+pbuilder1  record: entered 2, funded 2, awarded 4.805 GEN, average 4.90  → admitted
 newcomer   record: nothing                                               → refused, deposit refunded
 ```
 
@@ -609,9 +609,12 @@ stored vector — and says what that costs: if the validators disagree about one
 proposal, the transaction writes nothing for any of them.
 
 It did not come to that. Pool A's three proposals were scored in **one
-55-second transaction** — the three share one `evaluated_at`, one attempt each,
-each with its own model call. Pools B, C and A's second round took one call
-each.
+transaction** (55 seconds on the first deployment, 154 on the second) — the
+three share one `evaluated_at`, one attempt each, each with its own model call.
+Every other pool took one call each. And a round in which one proposal had
+already been scored on its own was finished by `evaluate_all` without touching
+it: same content hash, same attempt count, and a further batch refused because
+nothing was left to score.
 
 The first version of the seed script logged those calls as *"batch did not
 settle"*. They had settled. The SDK could not render the nested results list,
@@ -620,9 +623,9 @@ as it was; the script now asks the chain.
 
 ---
 
-## The one check that failed
+## The one check that failed, and the one hole a reviewer found
 
-The milestone seed ended `1 CHECK(S) FAILED`: pool A's second round still held
+The first milestone seed ended `1 CHECK(S) FAILED`: pool A's second round still held
 2.1 GEN. The contract was right — that was the funded proposer's award and
 deposit, never claimed, because the script matched wallets to proposals by
 comparing a lowercased address against the checksummed one the chain returns.
@@ -637,11 +640,35 @@ the contract rather than in the contract. The lesson from part one still holds:
 a script's memory is not evidence, and a check that can fail is worth more than
 one that cannot.
 
+The hole was in the contract. A last pass before submission asked ten hard
+questions, and one of them — *can someone manipulate their reputation by
+creating rounds and funding themselves?* — had the answer yes. Anybody may open
+a round and anybody may file to one, so one wallet could open a 1 GEN round,
+file to it, win it, take the award and the remainder straight back, and walk
+into every pool with a reputation floor of one.
+
+A funded proposal whose author is the treasurer of the round that funded it is
+now counted as `self_funded` and earns no reputation. That needed new bytes, so
+all three contracts were redeployed and both seeds re-run from scratch on
+them, with the ten questions demonstrated on chain as they went: the silent
+co-approvers' window lapsing and a stranger finalizing, the self-funded wallet
+at zero reputation and refused by a floor of one, an amendment and an extension
+refused once scoring began, `evaluate_all` leaving a pre-scored proposal
+untouched, the 2 GEN milestone award released to the wei. Every check passed —
+82 of 82 on the milestone seed — and after the last round was settled the
+contract's books read **zero: balance, locked, payable and every pool
+reserve**. The evidence read afterwards is 38 of 38.
+
+What the fix cannot see is two wallets owned by one person, which on chain
+looks exactly like a treasurer funding a stranger. That limit is written into
+the method, the reputation page and the README, rather than hidden behind a
+stronger-sounding name.
+
 ---
 
 ## What it adds up to
 
-915 offline tests, 233 of them new — including forty randomised multi-round
+930 offline tests, 248 of them new — including forty randomised multi-round
 pools with random approvers, milestones that pass, fail and lapse, and
 reserves spent or withdrawn, every one of which has to reach exactly zero. An
 audit that walks the source to prove the new promises: no reputation field, no

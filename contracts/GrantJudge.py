@@ -3020,9 +3020,26 @@ class GrantJudge(gl.contract.Contract):
         READ. There is no reputation field anywhere in storage, so there is no
         setter for one and nothing for an owner, a treasurer or the proposer
         to write to: it is a pure function of what the chain already says
-        happened to this address's filings."""
+        happened to this address's filings.
+
+        A GRANT A WALLET PAID ITSELF IS NOT REPUTATION. Anybody may open a
+        round, and anybody may file to one, so without this a single wallet
+        could open a 1 GEN round, file to it, fund itself, take most of the
+        pool straight back as award and remainder, and walk into every round
+        with a reputation floor of one. So a funded proposal whose author is
+        the TREASURER OF THE ROUND THAT FUNDED IT is counted as `self_funded`
+        and not as `proposals_funded`, and its award is not in
+        `total_awarded_wei`.
+
+        WHAT THIS CANNOT SEE: two wallets owned by one person. A treasurer who
+        funds their own second wallet looks, on chain, exactly like a
+        treasurer funding a stranger. No contract can tell those apart
+        without an identity it does not have, and this one does not pretend
+        to - a pool that needs Sybil resistance should name co-approvers, who
+        must sign off on every ranking it pays."""
         entered = 0
         funded = 0
+        self_funded = 0
         awarded = 0
         scored = 0
         score_sum = 0
@@ -3037,8 +3054,12 @@ class GrantJudge(gl.contract.Contract):
                 entered += 1
                 status = str(prop.status)
                 if status == P_FUNDED and int(prop.award_wei) > 0:
-                    funded += 1
-                    awarded += int(prop.award_wei)
+                    rnd = self._round(int(prop.round_id))
+                    if rnd is not None and rnd.treasurer == prop.author:
+                        self_funded += 1
+                    else:
+                        funded += 1
+                        awarded += int(prop.award_wei)
                 if int(prop.evaluated_at) > 0:
                     scored += 1
                     if str(prop.contest_status) == C_WON:
@@ -3050,6 +3071,7 @@ class GrantJudge(gl.contract.Contract):
                 elif str(prop.contest_status) == C_LOST:
                     lost += 1
         return {"rounds_entered": entered, "proposals_funded": funded,
+                "self_funded": self_funded,
                 "total_awarded_wei": awarded, "scored": scored,
                 "average_score": score_sum // scored if scored > 0 else 0,
                 "contests_won": won, "contests_lost": lost}
@@ -6382,9 +6404,12 @@ class GrantJudge(gl.contract.Contract):
             "average_score_text": _score_text(rep["average_score"]),
             "contests_won": rep["contests_won"],
             "contests_lost": rep["contests_lost"],
+            "self_funded": rep["self_funded"],
             "reputation": rep["proposals_funded"],
             "note": ("`reputation` is `proposals_funded`, which is what a "
-                     "round's min_reputation is compared against"),
+                     "round's min_reputation is compared against; a grant "
+                     "from a round this wallet opened itself is counted as "
+                     "`self_funded` and earns none"),
         }
 
     def _template_view(self, tpl: Template) -> dict:

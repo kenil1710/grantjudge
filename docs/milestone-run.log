@@ -1,150 +1,232 @@
-=== GrantJudgeDemo 0x7a11c7A753b5F520ADfd65248F7Cafcf25F7AAeE — milestone build
-  funding  12 of 12 wallets topped up · batch 3 · delivery bar 400
+=== GrantJudgeDemo 0xd7DC916BF665A1DAd25FbA7e6544B233B2Ea3DDa — milestone build
+  funding  0 of 12 wallets topped up · batch 3 · delivery bar 400
 
   POOL A — Ecosystem Growth v2, multi-round, 5 GEN, 2 seats, 4.00 bar
-  ptreasurer1  create_pool                OK        11s
-     ok   pool A opened with round 1 — pool 1, round 6
-  pbuilder1    submit_proposal            OK        9s
-     ok   pool A round 1: indexer filed — proposal 10
-  pbuilder2    submit_proposal            OK        9s
-     ok   pool A round 1: explorer filed — proposal 11
-  pbuilder3    submit_proposal            OK        12s
-     ok   pool A round 1: translation filed — proposal 12
-  pbuilder2    amend_proposal             OK        12s
+  ptreasurer1  create_pool                OK        7s
+     ok   pool A opened with round 1 — pool 1, round 2
+  pbuilder1    submit_proposal            OK        10s
+     ok   pool A round 1: indexer filed — proposal 2
+  pbuilder2    submit_proposal            OK        8s
+     ok   pool A round 1: explorer filed — proposal 4
+  pbuilder3    submit_proposal            OK        10s
+     ok   pool A round 1: translation filed — proposal 6
+  pbuilder2    amend_proposal             OK        9s
      ok   an amendment is accepted before the deadline — 189 chars, the filing unchanged
 
-  POOL B — Security Audit Fund, two co-approvers
+  POOL B — Security Audit Fund, two co-approvers who sign
   ptreasurer2  create_pool                ACCEPTED  9s
-               the create outran the client but LANDED — round 7
+               the create outran the client but LANDED — round 4
      ok   pool B opened needing 2 of 2 approvals
-  pbuilder4    submit_proposal            OK        11s
+  pbuilder4    submit_proposal            OK        10s
   pbuilder5    submit_proposal            OK        7s
 
+  POOL F — Silent Approvers, two co-approvers who never vote
+  ptreasurer1  create_pool                ACCEPTED  11s
+               the create outran the client but LANDED — round 5
+     ok   pool F opened with two co-approvers and a 900s approval window
+  pbuilder3    submit_proposal            OK        12s
+
   POOL C — Dev Tools Grant, milestones 60 / 40
-  ptreasurer3  create_pool                OK        10s
+  ptreasurer3  create_pool                OK        11s
      ok   pool C opened with a two-milestone schedule
-  pbuilder1    submit_proposal            OK        12s
-  pbuilder2    submit_proposal            OK        13s
+  pbuilder1    submit_proposal            OK        13s
+  pbuilder2    submit_proposal            OK        9s
+
+  SELF-FUNDING — a wallet opens a round and files to it
+  newcomer     create_round               OK        12s
+  newcomer     submit_proposal            OK        9s
+     ok   the treasurer filed to their own round — round 9, proposal 16
 
   TEMPLATE — Standard Ecosystem, saved with pool A's rubric
   ptreasurer1  create_template            OK        9s
      ok   the template carries pool A's exact rubric — criteria hash 8111b1d5a55c9dae
-  ptreasurer2  create_round_from_template OK        12s
-     ok   pool E opened from the template — pool 4, template 1
-  ptreasurer2  extend_deadline            OK        10s
-     ok   pool E's deadline extended by a day — extensions left 1
+  ptreasurer2  create_round_from_template OK        11s
+     ok   pool E opened from the template — pool 5, template 1
+  ptreasurer2  extend_deadline            OK        9s
+     ok   pool E's deadline extended while open — extensions left 1
+  pbuilder5    submit_proposal            OK        11s
 
-  waiting 853s for the submission windows to close…
+  waiting 1007s for the submission windows to close…
+
+  POOL F — score it, then show the approvers' silence cannot freeze it
+  ptrigger     evaluate_all               ACCEPTED  51s
+               batch ACCEPTED, return value unreadable — the chain says 1 scored, 0 pending
+     ok   pool F: every proposal scored — 1 scored, 1 evaluate_all call(s)
+  ptrigger     finalize                   REJECTED  11s  — round #5 needs 2 of its 2 co-approvers to sign off before it is ranked; 0 have - or anyone may finalize once the approval window lapses in 855s
+     ok   Q3 · before the lapse, finalize waits for the approvers — round #5 needs 2 of its 2 co-approvers to sign off before it is ranked; 0 have - or anyone may finalize once the approval window lapses in 855s
 
   POOL A round 1 — evaluate_all, one call per batch of three
-  ptrigger     evaluate_all               ACCEPTED  55s
-               batch did not settle (ACCEPTED); evaluating one at a time
+  ptrigger     evaluate_all               ACCEPTED  154s
+               batch ACCEPTED, return value unreadable — the chain says 3 scored, 0 pending
      ok   pool A round 1: every proposal scored — 3 scored, 1 evaluate_all call(s)
-     ok   the amended proposal verifies with its amendment in the content hash — ef2cdd444813f35b
-  ptrigger     finalize                   OK        9s
+  pbuilder1    amend_proposal             REJECTED  9s  — round #2 has closed to submissions; an amendment is only accepted before the deadline
+     ok   Q6 · an amendment after evaluation started is refused — round #2 has closed to submissions; an amendment is only accepted before the deadline
+  ptreasurer1  extend_deadline            REJECTED  8s  — round #2 has closed to submissions; only an open round can be extended
+     ok   Q7 · an extension after evaluation started is refused — round #2 has closed to submissions; only an open round can be extended
+     ok   the amended proposal verifies with its amendment in the content hash — 872055089e1165cf
+  ptrigger     finalize                   OK        13s
      ok   pool A round 1 ranked — 2 funded, 1 rejected
 
   POOL B — the ranking waits for its co-approvers
-  ptrigger     evaluate_all               ACCEPTED  30s
-               batch did not settle (ACCEPTED); evaluating one at a time
+  ptrigger     evaluate_all               ACCEPTED  19s
+               batch ACCEPTED, return value unreadable — the chain says 2 scored, 0 pending
      ok   pool B: every proposal scored — 2 scored, 1 evaluate_all call(s)
-  ptrigger     finalize                   REJECTED  13s  — round #7 needs 2 of its 2 co-approvers to sign off before it is ranked; 0 have - or anyone may finalize once the approval window lapses in 7287s
-     ok   finalize is refused without the approvals — round #7 needs 2 of its 2 co-approvers to sign off before it is ranked; 0 have - or anyone may finalize once the approval window lapses in 7287s
-  approver1    approve_finalization       OK        8s
+  ptrigger     finalize                   REJECTED  12s  — round #4 needs 2 of its 2 co-approvers to sign off before it is ranked; 0 have - or anyone may finalize once the approval window lapses in 6900s
+     ok   finalize is refused without the approvals — round #4 needs 2 of its 2 co-approvers to sign off before it is ranked; 0 have - or anyone may finalize once the approval window lapses in 6900s
+  approver1    approve_finalization       OK        10s
      ok   the first approval is not enough — 1/2
-  approver2    approve_finalization       OK        9s
+  approver2    approve_finalization       OK        8s
      ok   the second approval ranks the round in the same transaction — 2 funded, outcome APPROVED
 
+  SELF-FUNDING — score and rank the treasurer's own round
+  ptrigger     evaluate_all               ACCEPTED  14s
+               batch ACCEPTED, return value unreadable — the chain says 1 scored, 0 pending
+     ok   self-funded round: every proposal scored — 1 scored, 1 evaluate_all call(s)
+  ptrigger     finalize                   OK        10s
+     ok   Q4 · a grant a wallet paid itself earns no reputation — status FUNDED, proposals_funded 0, self_funded 1
+
+  POOL E — score and rank the template pool
+  ptrigger     evaluate_all               ACCEPTED  56s
+               batch ACCEPTED, return value unreadable — the chain says 1 scored, 0 pending
+     ok   pool E: every proposal scored — 1 scored, 1 evaluate_all call(s)
+  ptrigger     finalize                   OK        15s
+     ok   pool E ranked — 1 funded
+     ok   Q5 · the template is unchanged after a pool was opened and run from it — hash 8111b1d5a55c9dae, used by pool(s) [5]
+
   POOL C — the award is held, and released against delivered milestones
-  ptrigger     evaluate_all               ACCEPTED  20s
-               batch did not settle (ACCEPTED); evaluating one at a time
+  ptrigger     evaluate_all               ACCEPTED  28s
+               batch ACCEPTED, return value unreadable — the chain says 2 scored, 0 pending
      ok   pool C: every proposal scored — 2 scored, 1 evaluate_all call(s)
-  ptrigger     finalize                   OK        9s
+  ptrigger     finalize                   OK        11s
      ok   pool C ranked — 1 funded
-     ok   pool C has a funded winner — proposal 15
+     ok   pool C has a funded winner — proposal 13
      ok   the whole award is held at ranking — 2.000000 GEN held
-  pbuilder1    claim_award                OK        8s
+  pbuilder1    claim_award                OK        12s
      ok   the returned deposit is claimable at once — 0.100000 GEN
-  pbuilder1    submit_milestone_proof     OK        30s  — Strongest on MVP: a working type generator emitting typed bindings for re (5/7). The filing carries 18 figures, 4 timing markers, a costed budget, named track record, stated risks. Weighted total 5.20/7.00 with overall quality 5/7 and completeness 7/7, which clears the round's 4.00 threshold.
+  pbuilder1    submit_milestone_proof     OK        34s  — Strongest on MVP: a working type generator emitting typed bindings for re (5/7). The filing carries 18 figures, 4 timing markers, a costed budget, named track record, stated risks. Weighted total 5.20/7.00 with overall quality 5/7 and completeness 7/7, which clears the round's 4.00 threshold.
      ok   milestone 1 verified by consensus and 60% released — 5.20/7.00 against 4.00, 1.200000 GEN
-  pbuilder1    claim_award                OK        9s
-     ok   tranche 1 claimed — 1.200000 GEN
-  pbuilder1    submit_milestone_proof     OK        24s  — Strongest on Final: published package with documentation, examples and ad (5/7). The filing carries 22 figures, 4 timing markers, a costed budget, named track record, stated risks. Weighted total 5.20/7.00 with overall quality 5/7 and completeness 7/7, which clears the round's 4.00 threshold.
-     ok   milestone 2 verified by consensus and 40% released — 5.20/7.00 against 4.00, 0.800000 GEN
   pbuilder1    claim_award                OK        10s
+     ok   tranche 1 claimed — 1.200000 GEN
+  pbuilder1    submit_milestone_proof     OK        25s  — Strongest on Final: published package with documentation, examples and ad (5/7). The filing carries 22 figures, 4 timing markers, a costed budget, named track record, stated risks. Weighted total 5.20/7.00 with overall quality 5/7 and completeness 7/7, which clears the round's 4.00 threshold.
+     ok   milestone 2 verified by consensus and 40% released — 5.20/7.00 against 4.00, 0.800000 GEN
+  pbuilder1    claim_award                OK        11s
      ok   tranche 2 claimed — 0.800000 GEN
-     ok   the tranches sum to the award exactly — 2.000000 of 2.000000 GEN
+     ok   Q2 · the full award is released and claimed, with no dust — 2000000000000000000 of 2000000000000000000 wei released, 2000000000000000000 claimed, 0 held
 
   POOL A — top up, open round 2 under the same rubric
-  ptreasurer1  top_up_pool                OK        10s
+  ptreasurer1  top_up_pool                OK        13s
      ok   pool A topped up — 3.000000 GEN in reserve
-  ptreasurer1  create_next_round          OK        9s
-     ok   round 2 opened from the reserve — round 10
+  ptreasurer1  create_next_round          OK        12s
+     ok   round 2 opened from the reserve — round 12
      ok   round 2 runs round 1's rubric, hash for hash — 8111b1d5a55c9dae
-  pbuilder1    submit_proposal            REJECTED  11s  — this proposal repeats proposal #10 word for word, which pool #1 has already read under the same rubric; a later round takes new proposals, not resubmissions
-     ok   a round-1 filing resubmitted verbatim is refused — this proposal repeats proposal #10 word for word, which pool #1 has already read under the same rubric; a later round takes new proposals, not resubmissions
-  pbuilder4    submit_proposal            OK        9s
-     ok   pool A round 2: workshops filed — proposal 17
-  pbuilder5    submit_proposal            OK        9s
-     ok   pool A round 2: debugger filed — proposal 18
+  pbuilder1    submit_proposal            REJECTED  9s  — this proposal repeats proposal #2 word for word, which pool #1 has already read under the same rubric; a later round takes new proposals, not resubmissions
+     ok   a round-1 filing resubmitted verbatim is refused — this proposal repeats proposal #2 word for word, which pool #1 has already read under the same rubric; a later round takes new proposals, not resubmissions
+  pbuilder4    submit_proposal            OK        14s
+     ok   pool A round 2: workshops filed — proposal 20
+  pbuilder5    submit_proposal            OK        10s
+     ok   pool A round 2: debugger filed — proposal 21
+  pbuilder3    submit_proposal            OK        12s
+     ok   pool A round 2: testkit filed — proposal 22
 
   POOL D — Community Fund, min_reputation 1
-  ptreasurer3  create_pool                OK        11s
-     pbuilder1 record: entered 2, funded 2, awarded 4.737373737373737373 GEN, average 4.95
-  pbuilder1    submit_proposal            OK        11s
+  ptreasurer3  create_pool                OK        13s
+     pbuilder1 record: entered 2, funded 2, awarded 4.805383022774327122 GEN, average 4.90
+  pbuilder1    submit_proposal            OK        12s
      ok   a proposer pool A funded is admitted — 2 funded
-  newcomer     submit_proposal            REJECTED  9s  — round #11 admits proposers with at least 1 funded proposal on this contract; this wallet has 0
-     ok   a wallet with no record is refused, and its deposit is refundable — round #11 admits proposers with at least 1 funded proposal on this contract; this wallet has 0
-  newcomer     claim_payout               OK        11s
+  newcomer     submit_proposal            REJECTED  11s  — round #13 admits proposers with at least 1 funded proposal on this contract; this wallet has 0
+     ok   Q4 · the self-funded wallet is still refused by a reputation floor of 1 — round #13 admits proposers with at least 1 funded proposal on this contract; this wallet has 0
+  newcomer     claim_payout               OK        12s
 
-  waiting 833s for pool A round 2 to close…
-  ptrigger     evaluate_all               ACCEPTED  23s
-               batch did not settle (ACCEPTED); evaluating one at a time
-     ok   pool A round 2: every proposal scored — 2 scored, 1 evaluate_all call(s)
-  ptrigger     finalize                   OK        9s
-     ok   pool A round 2 ranked — 1 funded
-     ok   pool A's history shows two rounds — 5 proposals, 3 funded, 5.937373737373737373 GEN distributed
+  POOL F — waiting 250s for the silent approvers' window to lapse…
+  ptrigger     finalize                   OK        14s
+     ok   Q3 · with neither approver voting, the window lapsed and a stranger finalized — outcome LAPSED, votes PENDING/PENDING
 
-  ANALYTICS — round 6, 3 scored
-     Technical feasibility    mean 4.00  min 2.00  max 6.00  sd 1.63
+  waiting 545s for pool A round 2 and pool D to close…
+
+  POOL A round 2 — one evaluate(), then evaluate_all over the rest
+  ptrigger     evaluate                   OK        16s  — Strongest on Technical feasibility (2/7). weakest on Community impact (0/7). The filing carries 4 figures, 2 timing markers, a costed budget. Weighted total 1.08/7.00 with overall quality 2/7 and completeness 2/7, which does not clear the round's 4.00 threshold.
+  ptrigger     evaluate_all               ACCEPTED  36s
+  ptrigger     evaluate_all               REJECTED  12s  — round #12 has no proposal waiting for a score
+     ok   Q8 · evaluate_all scored only the unscored proposals and left the scored one untouched — pre-scored #20 attempts 1, hash unchanged; 3 scored, 0 pending; a further batch: REJECTED
+  ptrigger     finalize                   OK        11s
+     ok   pool A round 2 ranked — 2 funded
+
+  POOL D — score and rank
+  ptrigger     evaluate_all               ACCEPTED  16s
+               batch ACCEPTED, return value unreadable — the chain says 1 scored, 0 pending
+     ok   pool D: every proposal scored — 1 scored, 1 evaluate_all call(s)
+  ptrigger     finalize                   OK        11s
+     ok   pool D ranked — 1 funded
+     ok   pool A's history shows two rounds — 6 proposals, 4 funded, 6.530914937667944143 GEN distributed
+
+  ANALYTICS — round 2, 3 scored
+     Technical feasibility    mean 3.66  min 2.00  max 5.00  sd 1.24
      Team experience          mean 3.66  min 1.00  max 6.00  sd 2.05
      Community impact         mean 4.00  min 2.00  max 6.00  sd 1.63
      Budget reasonableness    mean 4.00  min 2.00  max 6.00  sd 1.63
      distribution by band [0,1,0,0,1,1,0,0] · funding rate 66.7%
-     ok   analytics computed from stored scores — round 6
+     ok   analytics computed from stored scores — round 2
 
   claims — every award and returned deposit
-  pbuilder1    claim_award                OK        9s
-     ok   claimed: round 6 proposal 10 — 2.837374 GEN
+  pbuilder1    claim_award                OK        10s
+     ok   claimed: round 2 proposal 2 — 2.905383 GEN
+  pbuilder3    claim_award                OK        12s
+     ok   claimed: round 2 proposal 6 — 1.300000 GEN
+  pbuilder5    claim_award                OK        13s
+     ok   claimed: round 12 proposal 21 — 1.625532 GEN
   pbuilder3    claim_award                OK        9s
-     ok   claimed: round 6 proposal 12 — 1.300000 GEN
-  pbuilder4    claim_award                OK        8s
-     ok   claimed: round 7 proposal 13 — 1.498693 GEN
-  pbuilder5    claim_award                OK        12s
-     ok   claimed: round 7 proposal 14 — 1.701307 GEN
+     ok   claimed: round 12 proposal 22 — 1.100000 GEN
+  pbuilder4    claim_award                OK        11s
+     ok   claimed: round 4 proposal 8 — 1.498693 GEN
+  pbuilder5    claim_award                OK        9s
+     ok   claimed: round 4 proposal 10 — 1.701307 GEN
+  pbuilder1    claim_award                OK        9s
+     ok   claimed: round 13 proposal 23 — 1.100000 GEN
+  pbuilder5    claim_award                OK        16s
+     ok   claimed: round 10 proposal 19 — 1.100000 GEN
+  pbuilder3    claim_award                OK        11s
+     ok   claimed: round 5 proposal 12 — 1.600000 GEN
+  newcomer     claim_award                OK        12s
+     ok   claimed: round 9 proposal 16 — 1.100000 GEN
 
   waiting 320s for the appeal windows…
 
   REMAINDERS — one takeRemainder() per round; the client routes around the fee bug
      claim_remainder_fallback → OK
      claim_payout → OK
-     ok   round 6: remainder taken in one call — claim_remainder_fallback → claim_payout
-     ok   round 6 drained to exactly zero — 0 wei locked
+     ok   round 2: remainder taken in one call — claim_remainder_fallback → claim_payout
+     ok   round 2 drained to exactly zero — 0 wei locked
      claim_remainder_fallback → OK
      claim_payout → OK
-     ok   round 10: remainder taken in one call — claim_remainder_fallback → claim_payout
-     FAIL round 10 drained to exactly zero — 2100000000000000000 wei locked
+     ok   round 12: remainder taken in one call — claim_remainder_fallback → claim_payout
+     ok   round 12 drained to exactly zero — 0 wei locked
+     claim_remainder_fallback → OK
+     claim_payout → OK
+     ok   round 4: remainder taken in one call — claim_remainder_fallback → claim_payout
+     ok   round 4 drained to exactly zero — 0 wei locked
      claim_remainder_fallback → OK
      claim_payout → OK
      ok   round 7: remainder taken in one call — claim_remainder_fallback → claim_payout
      ok   round 7 drained to exactly zero — 0 wei locked
      claim_remainder_fallback → OK
      claim_payout → OK
-     ok   round 8: remainder taken in one call — claim_remainder_fallback → claim_payout
-     ok   round 8 drained to exactly zero — 0 wei locked
+     ok   round 13: remainder taken in one call — claim_remainder_fallback → claim_payout
+     ok   round 13 drained to exactly zero — 0 wei locked
+     claim_remainder_fallback → OK
+     claim_payout → OK
+     ok   round 10: remainder taken in one call — claim_remainder_fallback → claim_payout
+     ok   round 10 drained to exactly zero — 0 wei locked
+     claim_remainder_fallback → OK
+     claim_payout → OK
+     ok   round 5: remainder taken in one call — claim_remainder_fallback → claim_payout
+     ok   round 5 drained to exactly zero — 0 wei locked
+     claim_remainder_fallback → OK
+     ok   round 9: remainder taken in one call — claim_remainder_fallback
+     ok   round 9 drained to exactly zero — 0 wei locked
+     ok   Q1 · pool A — two rounds finalized, everything claimed — holds exactly 0 — reserve 0 + rounds' locked = 0 wei
 
-  books  balance 10.200000 = locked 10.200000 + payable 0.000000 GEN
-         pools 5 · templates 1 · milestones passed 2 · batches 4 · amendments 1 · extensions 1
+  books  balance 4.000000 = locked 4.000000 + payable 0.000000 GEN
+         pools 6 · templates 1 · milestones passed 2 · batches 8 · amendments 1 · extensions 1
      ok   the ledger identity holds on chain — balance_wei == locked_wei + payable_wei
 
-1 CHECK(S) FAILED — 45.0 minutes
+ALL CHECKS PASSED — 67.1 minutes

@@ -1,0 +1,12 @@
+=== drain 0xd7DC916BF665A1DAd25FbA7e6544B233B2Ea3DDa
+     ok   round 11 (Q4 Ecosystem Fund) cancelled by its treasurer — 4.000000 GEN back to the treasurer
+     ok   treasurer2 swept — 4.000000 GEN
+
+  books  balance 0 = locked 0 + payable 0 wei
+  chain  39900000000000000000 wei · undelivered 39900000000000000000 wei
+     ok   Q10 · every pool settled — the contract's balance is exactly 0 — balance 0 · locked 0 · payable 0 · pool reserves 0
+     ok   the ledger identity holds — balance_wei == locked_wei + payable_wei
+
+  reopened a round for the app AFTER the zero was recorded: 14
+
+ALL CHECKS PASSED

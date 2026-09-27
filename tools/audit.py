@@ -679,6 +679,9 @@ def main() -> int:
     check(not any("reputation" == f or f.startswith("reputation_")
                   for f in storage_fields),
           "no reputation field is stored anywhere - it is computed on read")
+    rep = ast.unparse(next(m for m in judge_methods if m.name == "_reputation"))
+    check("rnd.treasurer == prop.author" in rep and "self_funded" in rep,
+          "a grant a wallet paid itself is not counted as reputation")
     template_fields = set()
     for node in ast.walk(tree):
         if isinstance(node, ast.ClassDef) and node.name == "Template":

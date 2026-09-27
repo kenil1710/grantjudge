@@ -1,25 +1,25 @@
 {
-  "started_at": "2026-09-27T02:41:43.589Z",
+  "started_at": "2026-09-27T06:29:34.708Z",
   "checks": [
     {
       "ok": true,
       "label": "pool A opened with round 1",
-      "detail": "pool 1, round 6"
+      "detail": "pool 1, round 2"
     },
     {
       "ok": true,
       "label": "pool A round 1: indexer filed",
-      "detail": "proposal 10"
+      "detail": "proposal 2"
     },
     {
       "ok": true,
       "label": "pool A round 1: explorer filed",
-      "detail": "proposal 11"
+      "detail": "proposal 4"
     },
     {
       "ok": true,
       "label": "pool A round 1: translation filed",
-      "detail": "proposal 12"
+      "detail": "proposal 6"
     },
     {
       "ok": true,
@@ -33,8 +33,18 @@
     },
     {
       "ok": true,
+      "label": "pool F opened with two co-approvers and a 900s approval window",
+      "detail": ""
+    },
+    {
+      "ok": true,
       "label": "pool C opened with a two-milestone schedule",
       "detail": ""
+    },
+    {
+      "ok": true,
+      "label": "the treasurer filed to their own round",
+      "detail": "round 9, proposal 16"
     },
     {
       "ok": true,
@@ -44,12 +54,22 @@
     {
       "ok": true,
       "label": "pool E opened from the template",
-      "detail": "pool 4, template 1"
+      "detail": "pool 5, template 1"
     },
     {
       "ok": true,
-      "label": "pool E's deadline extended by a day",
+      "label": "pool E's deadline extended while open",
       "detail": "extensions left 1"
+    },
+    {
+      "ok": true,
+      "label": "pool F: every proposal scored",
+      "detail": "1 scored, 1 evaluate_all call(s)"
+    },
+    {
+      "ok": true,
+      "label": "Q3 · before the lapse, finalize waits for the approvers",
+      "detail": "round #5 needs 2 of its 2 co-approvers to sign off before it is ranked; 0 have - or anyone may finalize once the approval window lapses in 855s"
     },
     {
       "ok": true,
@@ -58,8 +78,18 @@
     },
     {
       "ok": true,
+      "label": "Q6 · an amendment after evaluation started is refused",
+      "detail": "round #2 has closed to submissions; an amendment is only accepted before the deadline"
+    },
+    {
+      "ok": true,
+      "label": "Q7 · an extension after evaluation started is refused",
+      "detail": "round #2 has closed to submissions; only an open round can be extended"
+    },
+    {
+      "ok": true,
       "label": "the amended proposal verifies with its amendment in the content hash",
-      "detail": "ef2cdd444813f35b"
+      "detail": "872055089e1165cf"
     },
     {
       "ok": true,
@@ -74,7 +104,7 @@
     {
       "ok": true,
       "label": "finalize is refused without the approvals",
-      "detail": "round #7 needs 2 of its 2 co-approvers to sign off before it is ranked; 0 have - or anyone may finalize once the approval window lapses in 7287s"
+      "detail": "round #4 needs 2 of its 2 co-approvers to sign off before it is ranked; 0 have - or anyone may finalize once the approval window lapses in 6900s"
     },
     {
       "ok": true,
@@ -85,6 +115,31 @@
       "ok": true,
       "label": "the second approval ranks the round in the same transaction",
       "detail": "2 funded, outcome APPROVED"
+    },
+    {
+      "ok": true,
+      "label": "self-funded round: every proposal scored",
+      "detail": "1 scored, 1 evaluate_all call(s)"
+    },
+    {
+      "ok": true,
+      "label": "Q4 · a grant a wallet paid itself earns no reputation",
+      "detail": "status FUNDED, proposals_funded 0, self_funded 1"
+    },
+    {
+      "ok": true,
+      "label": "pool E: every proposal scored",
+      "detail": "1 scored, 1 evaluate_all call(s)"
+    },
+    {
+      "ok": true,
+      "label": "pool E ranked",
+      "detail": "1 funded"
+    },
+    {
+      "ok": true,
+      "label": "Q5 · the template is unchanged after a pool was opened and run from it",
+      "detail": "hash 8111b1d5a55c9dae, used by pool(s) [5]"
     },
     {
       "ok": true,
@@ -99,7 +154,7 @@
     {
       "ok": true,
       "label": "pool C has a funded winner",
-      "detail": "proposal 15"
+      "detail": "proposal 13"
     },
     {
       "ok": true,
@@ -133,8 +188,8 @@
     },
     {
       "ok": true,
-      "label": "the tranches sum to the award exactly",
-      "detail": "2.000000 of 2.000000 GEN"
+      "label": "Q2 · the full award is released and claimed, with no dust",
+      "detail": "2000000000000000000 of 2000000000000000000 wei released, 2000000000000000000 claimed, 0 held"
     },
     {
       "ok": true,
@@ -144,7 +199,7 @@
     {
       "ok": true,
       "label": "round 2 opened from the reserve",
-      "detail": "round 10"
+      "detail": "round 12"
     },
     {
       "ok": true,
@@ -154,17 +209,22 @@
     {
       "ok": true,
       "label": "a round-1 filing resubmitted verbatim is refused",
-      "detail": "this proposal repeats proposal #10 word for word, which pool #1 has already read under the same rubric; a later round takes new proposals, not resubmissions"
+      "detail": "this proposal repeats proposal #2 word for word, which pool #1 has already read under the same rubric; a later round takes new proposals, not resubmissions"
     },
     {
       "ok": true,
       "label": "pool A round 2: workshops filed",
-      "detail": "proposal 17"
+      "detail": "proposal 20"
     },
     {
       "ok": true,
       "label": "pool A round 2: debugger filed",
-      "detail": "proposal 18"
+      "detail": "proposal 21"
+    },
+    {
+      "ok": true,
+      "label": "pool A round 2: testkit filed",
+      "detail": "proposal 22"
     },
     {
       "ok": true,
@@ -173,68 +233,123 @@
     },
     {
       "ok": true,
-      "label": "a wallet with no record is refused, and its deposit is refundable",
-      "detail": "round #11 admits proposers with at least 1 funded proposal on this contract; this wallet has 0"
+      "label": "Q4 · the self-funded wallet is still refused by a reputation floor of 1",
+      "detail": "round #13 admits proposers with at least 1 funded proposal on this contract; this wallet has 0"
     },
     {
       "ok": true,
-      "label": "pool A round 2: every proposal scored",
-      "detail": "2 scored, 1 evaluate_all call(s)"
+      "label": "Q3 · with neither approver voting, the window lapsed and a stranger finalized",
+      "detail": "outcome LAPSED, votes PENDING/PENDING"
+    },
+    {
+      "ok": true,
+      "label": "Q8 · evaluate_all scored only the unscored proposals and left the scored one untouched",
+      "detail": "pre-scored #20 attempts 1, hash unchanged; 3 scored, 0 pending; a further batch: REJECTED"
     },
     {
       "ok": true,
       "label": "pool A round 2 ranked",
+      "detail": "2 funded"
+    },
+    {
+      "ok": true,
+      "label": "pool D: every proposal scored",
+      "detail": "1 scored, 1 evaluate_all call(s)"
+    },
+    {
+      "ok": true,
+      "label": "pool D ranked",
       "detail": "1 funded"
     },
     {
       "ok": true,
       "label": "pool A's history shows two rounds",
-      "detail": "5 proposals, 3 funded, 5.937373737373737373 GEN distributed"
+      "detail": "6 proposals, 4 funded, 6.530914937667944143 GEN distributed"
     },
     {
       "ok": true,
       "label": "analytics computed from stored scores",
-      "detail": "round 6"
+      "detail": "round 2"
     },
     {
       "ok": true,
-      "label": "claimed: round 6 proposal 10",
-      "detail": "2.837374 GEN"
+      "label": "claimed: round 2 proposal 2",
+      "detail": "2.905383 GEN"
     },
     {
       "ok": true,
-      "label": "claimed: round 6 proposal 12",
+      "label": "claimed: round 2 proposal 6",
       "detail": "1.300000 GEN"
     },
     {
       "ok": true,
-      "label": "claimed: round 7 proposal 13",
+      "label": "claimed: round 12 proposal 21",
+      "detail": "1.625532 GEN"
+    },
+    {
+      "ok": true,
+      "label": "claimed: round 12 proposal 22",
+      "detail": "1.100000 GEN"
+    },
+    {
+      "ok": true,
+      "label": "claimed: round 4 proposal 8",
       "detail": "1.498693 GEN"
     },
     {
       "ok": true,
-      "label": "claimed: round 7 proposal 14",
+      "label": "claimed: round 4 proposal 10",
       "detail": "1.701307 GEN"
     },
     {
       "ok": true,
-      "label": "round 6: remainder taken in one call",
+      "label": "claimed: round 13 proposal 23",
+      "detail": "1.100000 GEN"
+    },
+    {
+      "ok": true,
+      "label": "claimed: round 10 proposal 19",
+      "detail": "1.100000 GEN"
+    },
+    {
+      "ok": true,
+      "label": "claimed: round 5 proposal 12",
+      "detail": "1.600000 GEN"
+    },
+    {
+      "ok": true,
+      "label": "claimed: round 9 proposal 16",
+      "detail": "1.100000 GEN"
+    },
+    {
+      "ok": true,
+      "label": "round 2: remainder taken in one call",
       "detail": "claim_remainder_fallback → claim_payout"
     },
     {
       "ok": true,
-      "label": "round 6 drained to exactly zero",
+      "label": "round 2 drained to exactly zero",
       "detail": "0 wei locked"
     },
     {
       "ok": true,
-      "label": "round 10: remainder taken in one call",
+      "label": "round 12: remainder taken in one call",
       "detail": "claim_remainder_fallback → claim_payout"
     },
     {
-      "ok": false,
-      "label": "round 10 drained to exactly zero",
-      "detail": "2100000000000000000 wei locked"
+      "ok": true,
+      "label": "round 12 drained to exactly zero",
+      "detail": "0 wei locked"
+    },
+    {
+      "ok": true,
+      "label": "round 4: remainder taken in one call",
+      "detail": "claim_remainder_fallback → claim_payout"
+    },
+    {
+      "ok": true,
+      "label": "round 4 drained to exactly zero",
+      "detail": "0 wei locked"
     },
     {
       "ok": true,
@@ -248,13 +363,48 @@
     },
     {
       "ok": true,
-      "label": "round 8: remainder taken in one call",
+      "label": "round 13: remainder taken in one call",
       "detail": "claim_remainder_fallback → claim_payout"
     },
     {
       "ok": true,
-      "label": "round 8 drained to exactly zero",
+      "label": "round 13 drained to exactly zero",
       "detail": "0 wei locked"
+    },
+    {
+      "ok": true,
+      "label": "round 10: remainder taken in one call",
+      "detail": "claim_remainder_fallback → claim_payout"
+    },
+    {
+      "ok": true,
+      "label": "round 10 drained to exactly zero",
+      "detail": "0 wei locked"
+    },
+    {
+      "ok": true,
+      "label": "round 5: remainder taken in one call",
+      "detail": "claim_remainder_fallback → claim_payout"
+    },
+    {
+      "ok": true,
+      "label": "round 5 drained to exactly zero",
+      "detail": "0 wei locked"
+    },
+    {
+      "ok": true,
+      "label": "round 9: remainder taken in one call",
+      "detail": "claim_remainder_fallback"
+    },
+    {
+      "ok": true,
+      "label": "round 9 drained to exactly zero",
+      "detail": "0 wei locked"
+    },
+    {
+      "ok": true,
+      "label": "Q1 · pool A — two rounds finalized, everything claimed — holds exactly 0",
+      "detail": "reserve 0 + rounds' locked = 0 wei"
     },
     {
       "ok": true,
@@ -264,7 +414,7 @@
   ],
   "pools": {
     "B": {
-      "round": 7,
+      "round": 4,
       "approvals": {
         "approvals": 2,
         "approvals_needed": 2,
@@ -280,31 +430,31 @@
         ],
         "found": true,
         "lapsed": false,
-        "lapses_at": 1790485311,
+        "lapses_at": 1790498969,
         "outcome": "APPROVED",
         "rejections": 0,
         "required": true,
-        "round_id": 7,
+        "round_id": 4,
         "satisfied": true,
         "status": "RANKED"
       }
     },
     "C": {
-      "round": 8,
-      "proposal": 15,
+      "round": 7,
+      "proposal": 13,
       "status": {
         "award_wei": "2000000000000000000",
         "found": true,
         "has_milestones": true,
         "held_wei": "0",
         "lapsed_wei": "0",
-        "lapses_at": 1790492479,
+        "lapses_at": 1790506643,
         "milestones": [
           {
             "attempts": 1,
-            "content_hash": "a51da111f1348b58",
+            "content_hash": "4ae10f175bfb2a9b",
             "description": "MVP: a working type generator emitting typed bindings for real contracts",
-            "facts_hash": "3b7acbf2db9b6cdd",
+            "facts_hash": "4b8a51893ec61c54",
             "index": 0,
             "percentage": 60,
             "proof_format": "release notes, figures, demo",
@@ -319,13 +469,13 @@
             "status": "PASSED",
             "tranche_gen": "1.20",
             "tranche_wei": "1200000000000000000",
-            "verified_at": 1790478102
+            "verified_at": 1790492271
           },
           {
             "attempts": 1,
-            "content_hash": "b1d709763c84394b",
+            "content_hash": "f31beb60cf2cc964",
             "description": "Final: published package with documentation, examples and adoption",
-            "facts_hash": "3878e722c23ae50c",
+            "facts_hash": "a5d4cc13274bedb1",
             "index": 1,
             "percentage": 40,
             "proof_format": "package version, docs, usage figures",
@@ -340,168 +490,46 @@
             "status": "PASSED",
             "tranche_gen": "0.80",
             "tranche_wei": "800000000000000000",
-            "verified_at": 1790478140
+            "verified_at": 1790492314
           }
         ],
         "next_milestone": -1,
         "passed": 2,
-        "proposal_id": 15,
+        "proposal_id": 13,
         "released_wei": "2000000000000000000",
-        "round_id": 8,
+        "round_id": 7,
         "threshold": 400
       }
     },
-    "A": {
-      "pool": 1,
-      "history": {
-        "found": true,
-        "pool": {
-          "approval_window_s": 604800,
-          "approvals_needed": 0,
-          "co_approvers": [],
-          "created_at": 1790476920,
-          "criteria": [
-            {
-              "description": "Can this team actually build the thing they describe, and does the plan show they know how?",
-              "name": "Technical feasibility",
-              "position": 0,
-              "weight_bps": 3000,
-              "weight_pct": "30%"
-            },
-            {
-              "description": "Has this team shipped comparable work before?",
-              "name": "Team experience",
-              "position": 1,
-              "weight_bps": 2500,
-              "weight_pct": "25%"
-            },
-            {
-              "description": "Who benefits, how many of them, and how directly?",
-              "name": "Community impact",
-              "position": 2,
-              "weight_bps": 2500,
-              "weight_pct": "25%"
-            },
-            {
-              "description": "Is the money costed out, and is the cost proportionate to the work?",
-              "name": "Budget reasonableness",
-              "position": 3,
-              "weight_bps": 2000,
-              "weight_pct": "20%"
-            }
-          ],
-          "criteria_hash": "8111b1d5a55c9dae",
-          "deadline_s": 900,
-          "description": "The ecosystem fund, run as a series of rounds under one rubric. Same criteria every round, fresh proposals each time.",
-          "first_round_id": 6,
-          "latest_round_id": 10,
-          "max_proposals": 4,
-          "max_winners": 2,
-          "milestone_window_s": 2592000,
-          "milestones": [],
-          "min_reputation": 0,
-          "min_score_text": "4.00",
-          "min_score_threshold": 400,
-          "name": "Ecosystem Growth v2",
-          "pool_id": 1,
-          "reserve_gen": "0.00",
-          "reserve_wei": "0",
-          "round_count": 2,
-          "template_id": 0,
-          "topped_up_wei": "8000000000000000000",
-          "treasurer": "0xD671352B05D30E93F1De3f7EEcB1EE05DDF96264",
-          "withdrawn_wei": "0"
-        },
-        "rounds": [
+    "F": {
+      "round": 5,
+      "approvals": {
+        "approvals": 0,
+        "approvals_needed": 2,
+        "approvers": [
           {
-            "allocated_wei": "3937373737373737373",
-            "approval_outcome": "",
-            "approvals_needed": 0,
-            "contested_count": 0,
-            "created_at": 1790476920,
-            "criteria_count": 4,
-            "criteria_names": [
-              "Technical feasibility",
-              "Team experience",
-              "Community impact",
-              "Budget reasonableness"
-            ],
-            "deadline": 1790477820,
-            "evaluated_count": 3,
-            "finalized_at": 1790477981,
-            "funded_count": 2,
-            "max_proposals": 4,
-            "max_winners": 2,
-            "milestone_count": 0,
-            "min_reputation": 0,
-            "min_score_threshold": 400,
-            "name": "Ecosystem Growth v2 - Round 1",
-            "phase": "SETTLING",
-            "pool_gen": "5.00",
-            "pool_id": 1,
-            "pool_wei": "5000000000000000000",
-            "proposal_count": 3,
-            "qualified_count": 0,
-            "rejected_count": 1,
-            "remainder_wei": "1162626262626262627",
-            "round_id": 6,
-            "round_number": 1,
-            "seconds_remaining": 0,
-            "spam_stake_wei": "100000000000000000",
-            "status": "RANKED",
-            "treasurer": "0xD671352B05D30E93F1De3f7EEcB1EE05DDF96264"
+            "address": "0xcce4df7491674626c4d2452b18caae875318d486",
+            "vote": "PENDING"
           },
           {
-            "allocated_wei": "2000000000000000000",
-            "approval_outcome": "",
-            "approvals_needed": 0,
-            "contested_count": 0,
-            "created_at": 1790478182,
-            "criteria_count": 4,
-            "criteria_names": [
-              "Technical feasibility",
-              "Team experience",
-              "Community impact",
-              "Budget reasonableness"
-            ],
-            "deadline": 1790479082,
-            "evaluated_count": 2,
-            "finalized_at": 1790479129,
-            "funded_count": 1,
-            "max_proposals": 4,
-            "max_winners": 2,
-            "milestone_count": 0,
-            "min_reputation": 0,
-            "min_score_threshold": 400,
-            "name": "Ecosystem Growth v2 - Round 2",
-            "phase": "RANKED",
-            "pool_gen": "3.00",
-            "pool_id": 1,
-            "pool_wei": "3000000000000000000",
-            "proposal_count": 2,
-            "qualified_count": 0,
-            "rejected_count": 1,
-            "remainder_wei": "1100000000000000000",
-            "round_id": 10,
-            "round_number": 2,
-            "seconds_remaining": 0,
-            "spam_stake_wei": "100000000000000000",
-            "status": "RANKED",
-            "treasurer": "0xD671352B05D30E93F1De3f7EEcB1EE05DDF96264"
+            "address": "0x09bc48b20358bb24bd282fd1f054a30c19980f11",
+            "vote": "PENDING"
           }
         ],
-        "total_distributed_gen": "5.937373737373737373",
-        "total_distributed_wei": "5937373737373737373",
-        "total_funded": 3,
-        "total_pool_gen": "8.00",
-        "total_pool_wei": "8000000000000000000",
-        "total_proposals": 5,
-        "total_rounds": 2
+        "found": true,
+        "lapsed": true,
+        "lapses_at": 1790492697,
+        "outcome": "LAPSED",
+        "rejections": 0,
+        "required": true,
+        "round_id": 5,
+        "satisfied": false,
+        "status": "RANKED"
       }
     }
   },
   "analytics": {
-    "round": 6,
+    "round": 2,
     "analytics": {
       "contest_success_bps": 0,
       "contested_count": 0,
@@ -509,11 +537,11 @@
       "criteria": [
         {
           "count": 3,
-          "max": 600,
-          "mean": 400,
+          "max": 500,
+          "mean": 366,
           "min": 200,
           "name": "Technical feasibility",
-          "stddev": 163
+          "stddev": 124
         },
         {
           "count": 3,
@@ -553,9 +581,9 @@
       "found": true,
       "funded_count": 2,
       "funding_rate_bps": 6666,
-      "mean_score": 393,
+      "mean_score": 385,
       "proposal_count": 3,
-      "round_id": 6,
+      "round_id": 2,
       "scored_count": 3,
       "skipped_count": 0,
       "status": "RANKED",
@@ -565,63 +593,65 @@
   },
   "stats": {
     "amendments": 1,
-    "balance_wei": "10200000000000000000",
-    "batches": 4,
+    "balance_wei": "4000000000000000000",
+    "batches": 8,
     "cancelled_rounds": 1,
-    "chain_balance_wei": "36500000000000000000",
+    "chain_balance_wei": "39900000000000000000",
     "contests": 2,
     "contests_won": 1,
     "evaluating_rounds": 0,
-    "evaluation_attempts": 17,
-    "evaluations": 17,
+    "evaluation_attempts": 22,
+    "evaluations": 22,
     "extensions": 1,
-    "finalized_rounds": 7,
-    "funded_proposals": 12,
+    "finalized_rounds": 11,
+    "funded_proposals": 17,
     "identity": "balance_wei == locked_wei + payable_wei",
     "inconclusive": 0,
     "ledger_balanced": true,
-    "locked_wei": "10200000000000000000",
+    "locked_wei": "4000000000000000000",
     "milestone_lapsed_wei": "0",
     "milestone_released_wei": "2000000000000000000",
     "milestones_passed": 2,
-    "open_rounds": 3,
+    "open_rounds": 1,
     "owner": "0xfC5fd0367aCEc924B9a28c7847C8f9D81B4f906B",
     "paused": false,
     "payable_wei": "0",
-    "pending_proposals": 1,
-    "pools": 5,
-    "proposals": 19,
+    "pending_proposals": 0,
+    "pools": 6,
+    "proposals": 23,
     "qualified_proposals": 1,
     "ranked_rounds": 0,
-    "refusals": 3,
+    "refusals": 7,
     "rejected_proposals": 4,
-    "rounds": 11,
+    "rounds": 13,
     "rubric_version": "1.0.0",
     "scored_proposals": 0,
     "skipped": 1,
     "skipped_proposals": 1,
     "templates": 1,
-    "total_awarded_gen": "20.237373737373737371",
-    "total_awarded_wei": "20237373737373737371",
-    "total_claimed_wei": "26300000000000000000",
+    "total_awarded_gen": "25.330914937667944141",
+    "total_awarded_wei": "25330914937667944141",
+    "total_claimed_wei": "35900000000000000000",
     "total_forfeited_wei": "600000000000000000",
-    "total_pool_gen": "34.00",
-    "total_pool_wei": "34000000000000000000",
-    "total_refunded_wei": "6362626262626262629",
-    "total_stakes_wei": "1900000000000000000",
-    "undelivered_wei": "26300000000000000000"
+    "total_pool_gen": "37.00",
+    "total_pool_wei": "37000000000000000000",
+    "total_refunded_wei": "8269085062332055859",
+    "total_stakes_wei": "2300000000000000000",
+    "undelivered_wei": "35900000000000000000"
   },
   "rounds": {
-    "A1": 6,
-    "A2": 10,
-    "B": 7,
-    "C": 8,
-    "D": 11,
-    "E": 9,
+    "A1": 2,
+    "A2": 12,
+    "B": 4,
+    "C": 7,
+    "D": 13,
+    "E": 10,
+    "F": 5,
+    "self": 9,
     "template": 1
   },
-  "finished_at": "2026-09-27T03:26:41.261Z",
-  "seconds": 2697.642,
-  "failures": 1,
-  "address": "0x7a11c7A753b5F520ADfd65248F7Cafcf25F7AAeE"
+  "finished_at": "2026-09-27T07:36:40.855Z",
+  "seconds": 4026.116,
+  "failures": 0,
+  "address": "0xd7DC916BF665A1DAd25FbA7e6544B233B2Ea3DDa"
 }

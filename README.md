@@ -261,7 +261,7 @@ analytics figure, and the remainder route.
 | 1 | **Multi-round pools** — `create_pool`, `top_up_pool`, `create_next_round`, `withdraw_reserve`, `get_pool_history` | One rubric for life, copied onto each round at creation (rule 4). The reserve is locked money like a pool, is promised to nobody, and `withdraw_reserve` returns it — so rule 7 holds for pools. A filing the pool already read is refused **before** the stake is taken (the novelty gate across rounds, `_text_key`). History totals are summed from the rounds on every read, never kept in a counter that could drift. |
 | 2 | **Delegated approval** — `approve_finalization`, `reject_finalization`, `get_approvals` | A strict majority (1/1, 2/2, 2/3). Approvers sign off on a ranking that is already determined — every proposal must be scored first — and cannot touch a criterion, a score or a seat. The signature that makes the majority ranks the round in the same transaction. **Rule 6 applied to people the treasurer names:** if they never sign, the requirement lapses after the pool's approval window and `finalize` is permissionless again, so an approver's silence cannot freeze anybody's deposit. |
 | 3 | **Milestone release** — `submit_milestone_proof`, `reclaim_lapsed_milestones`, `get_milestone_status` | The award is fixed at ranking and **held**; each proof is judged by `_consensus` with the same `_coherent` / `_agrees` gates and the same bracket system (the milestone becomes a one-line rubric, the proof becomes the filing). The last tranche takes what the floors left, so tranches sum to the award exactly. **The proof URL is a citation, never fetched** — see below. A tranche never delivered returns to the treasurer after the delivery window (rule 7). Released tranches are never clawed back. |
-| 4 | **Proposer reputation** — `get_proposer_stats`, pool option `min_reputation` | **Computed from the wallet's own proposals on every read.** There is no reputation field in storage, so there is no setter and nothing to forge. A floor of zero admits a wallet the chain has never seen. |
+| 4 | **Proposer reputation** — `get_proposer_stats`, pool option `min_reputation` | **Computed from the wallet's own proposals on every read.** There is no reputation field in storage, so there is no setter and nothing to forge. **A grant a wallet paid itself — funded in a round it opened — is `self_funded` and earns none**, so nobody can buy their way past a floor with a 1 GEN round of their own. What no contract can see is two wallets owned by one person; a pool that needs that resistance names co-approvers. A floor of zero admits a wallet the chain has never seen. |
 | 5 | **Criteria templates** — `create_template`, `get_templates`, `get_template`, `create_round_from_template` | Validated exactly as a rubric is; stored in the same flat criteria array; immutable (only `create_template` assigns a template field — walked as syntax offline). A template door may open the next round of an existing pool only if the pool's rubric **is** the template's, hash for hash. |
 | 6 | **Round analytics** — `get_round_analytics` | Per-criterion mean, min, max and standard deviation, the band distribution, the funding rate and the appeal success rate — a pure function (`_analytics`) over stored scores, in integer hundredths and basis points, with no float and no consensus. |
 | 7 | **Batch evaluation** — `evaluate_all` | Up to three proposals per call, **each its own consensus round** and its own stored vector. A batch whose validators disagree on one proposal writes nothing for any of them — the stated cost of batching inside one transaction; an unreachable scorer only makes that one INCONCLUSIVE. It does not queue child transactions, because a contract message to itself is funded from the same message-fee pool whose estimate is broken on Studio Dev. |
@@ -385,11 +385,12 @@ refund it from. Both halves of that argument are the same argument.
 contracts/GrantJudge.py      the contract — every rule documented where it lives
 contracts/GrantConsumer.py   the composability example, custody: false
 contracts/NOTES.md           design notes and the hazards that shaped them
-test/test_logic.py           915 offline tests — no chain, no network, no model
+test/test_logic.py           930 offline tests — no chain, no network, no model
 test/harness.mjs             shared integration helpers
 test/deploy.mjs              deploys both instances and the consumer
 test/seed.mjs                drives the whole lifecycle on chain and asserts it
 test/seed_milestone.mjs      drives pools, approvals, milestones, reputation, templates on chain
+test/drain_demo.mjs          settles every pool on the demo instance and asserts balance == 0
 test/collect.mjs             derives docs/seed-evidence.json by READING the chain
 test/verify_onchain.mjs      reads the deployed source back and diffs it against the repo
 test/topup.mjs               repairs a run that lost a write to the network
@@ -414,6 +415,7 @@ docs/seed-run.log            the raw log of the seed run, failures and all
 docs/seed-evidence.json      the machine-readable form
 docs/milestone-run.log       the raw log of the milestone seed
 docs/milestone-evidence.json what the milestone seed read back off the chain
+docs/drain-run.log           the drain to zero, and docs/drain-evidence.json
 ```
 
 ### Running it
@@ -429,6 +431,7 @@ node accounts.mjs                 # a stable pool of signing keys
 node deploy.mjs --both            # both instances + the consumer
 node seed.mjs --canonical         # the whole lifecycle, on chain, asserted
 node seed_milestone.mjs           # the milestone build, on its own wallets
+node drain_demo.mjs --reopen      # settle everything, assert 0, reopen one round
 
 cd .. && python3 tools/evidence.py   # renders docs/EVIDENCE.md from that run
 
@@ -471,25 +474,18 @@ the record, and this is a reader of it. An evidence document whose numbers were
 copied by a person keeps looking healthy after the contract stops agreeing with
 it.
 
-> **This deployment's runs, and the one failure in them.** `docs/seed-run.log`
-> is the original eight-outcome seed on the new bytes: **every check passed**,
-> remainders taken by the two-step path. `docs/EVIDENCE.md` is `collect.mjs`
-> reading the chain afterwards — **30/30**, now including the milestone
-> build's rounds.
+> **This deployment's runs.** `docs/seed-run.log` is the original
+> eight-outcome seed on the current bytes, `docs/milestone-run.log` the
+> milestone seed (82 of 82) and `docs/drain-run.log` the drain to zero — **every
+> check in all three passed**. `docs/EVIDENCE.md` is `collect.mjs` reading the
+> chain afterwards: **38/38**.
 >
-> `docs/milestone-run.log` records **one FAIL**: pool A's second round (round
-> 10) "did not drain", with 2.1 GEN still locked. The contract was right — that
-> was the funded proposer's award and deposit, unclaimed, because the seed
-> matched wallets to proposals by comparing a lowercased address with the
-> checksummed one the chain returns, found no wallet, and skipped the claim.
-> The seed is fixed (both sides lowercased), the proposer claimed, round 10
-> reached exactly zero, and EVIDENCE.md is the read taken after that. The same
-> log also says "batch did not settle" three times: each of those
-> `evaluate_all` calls **did** settle — all its proposals share one
-> `evaluated_at` and `batches` counts them — but the SDK could not render the
-> nested `results` list, and the first version of the script took an
-> unreadable return value for a failure. Neither log is rewritten to match
-> what came after — a log edited to agree with a later outcome is not a log.
+> The previous milestone deployment's seed recorded one failure — a round "not
+> drained" because the script compared a lowercased address with the
+> checksummed one the chain returns and skipped a claim; the contract was right
+> and the script was fixed. That deployment was then replaced to close a real
+> hole (below: *the pre-submission check*), and its logs live in git history
+> rather than being edited to agree with what came after.
 
 ## What the milestone seed demonstrates
 
@@ -508,6 +504,29 @@ on the demo instance — and like it, reads every figure back and checks it.
 
 Its log and evidence are in [`docs/milestone-run.log`](docs/milestone-run.log)
 and [`docs/milestone-evidence.json`](docs/milestone-evidence.json).
+
+## The pre-submission check
+
+Ten questions asked before submission, each answered **offline**
+(`TestFinalHardCheck` in `test/test_logic.py`, one test per question) **and on
+chain** (`test/seed_milestone.mjs` and `test/drain_demo.mjs`, lines marked
+`Q1`–`Q10` in their logs).
+
+| # | question | result | on chain |
+|---|---|---|---|
+| 1 | Pool A after two finalized, fully claimed rounds holds exactly 0? | **PASS** | reserve 0 + both rounds' locked = **0 wei** |
+| 2 | Both milestones release the full award, no dust? | **PASS** | 2000000000000000000 of 2000000000000000000 wei (2 GEN) released and claimed, 0 held. The last tranche takes what the floors left, so an award that does not divide by 60/40 has no dust either (offline, `3 GEN + 7 wei`). |
+| 3 | Co-approvers who never vote — does the window lapse and let anyone finalize? | **PASS** | pool F: finalize refused "lapses in 855s"; after it, a stranger finalized with outcome **LAPSED**, votes `PENDING/PENDING` |
+| 4 | Can a wallet fund itself into reputation? | **FAIL → FIXED** | It could. A grant from a round the wallet opened itself is now `self_funded` and earns none: on chain, `status FUNDED, proposals_funded 0, self_funded 1`, and the same wallet is refused by a floor of 1. Two wallets owned by one person remain invisible to any contract — stated, not hidden. |
+| 5 | Can a template be modified after creation? | **PASS** | no write assigns a template field except `create_template` (walked as syntax); after pool E was opened and run from it, name, criteria and hash `8111b1d5a55c9dae` unchanged |
+| 6 | Amend after evaluation started? | **PASS** | refused: "an amendment is only accepted before the deadline" |
+| 7 | Extend after evaluation started? | **PASS** | refused: "only an open round can be extended" |
+| 8 | `evaluate_all` when some proposals are already scored? | **PASS** | scored only the unscored; the pre-scored proposal kept its hash and its 1 attempt; a further batch refused, nothing left |
+| 9 | A plain round works exactly like the original? | **PASS** | every new field zero; the original eight-outcome seed re-ran on these bytes and passed every check; the unamended content hash is the original formula |
+| 10 | All pools A–E settled — contract balance 0? | **PASS** | books: `balance 0 = locked 0 + payable 0`, pool reserves 0 (`docs/drain-evidence.json`). Offline the same scenario also proves every wei deposited was transferred back out. The contract's *native* balance on Studio Dev is not 0, because that network queues `on="finalized"` value transfers and does not execute them — see *A note on Studio Dev and payouts*. |
+
+After the zero was recorded, one fresh round was opened so the app has
+something open to show.
 
 ---
 
@@ -532,8 +551,8 @@ To prove the **chain** holds those bytes, read the source back off it:
 
 ```bash
 node test/verify_onchain.mjs
-#   ok   GrantJudge      chain 310570 bytes 9fc100c70de9f838… | identical true
-#   ok   GrantJudgeDemo  chain 310570 bytes 9fc100c70de9f838… | identical true
+#   ok   GrantJudge      chain 312005 bytes 621f90f92839253c… | identical true
+#   ok   GrantJudgeDemo  chain 312005 bytes 621f90f92839253c… | identical true
 #   ok   GrantConsumer   chain  19666 bytes c5d33005268a26c7… | identical true
 ```
 

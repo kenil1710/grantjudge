@@ -535,6 +535,7 @@ export interface ProposerStats {
   average_score_text: string;
   contests_won: number;
   contests_lost: number;
+  self_funded: number;
   reputation: number;
 }
 

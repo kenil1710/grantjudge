@@ -399,13 +399,24 @@ Approvers vote on a ranking that is already determined — `_vote` calls
 is a human saying "I have read what the validators decided", not a vote on the
 outcome.
 
-### Reputation is not stored, on purpose
+### Reputation is not stored, on purpose — and self-funding is not reputation
 
 A stored reputation needs a writer, and a writer is a setter, and a setter is a
 lever. `_reputation` recomputes from the wallet's own proposals on every read,
 and `tools/audit.py` fails if any storage field named `reputation` ever appears.
 The cost is one pass over the author's proposals in `submit_proposal` for rounds
 with a floor; rounds without one skip it.
+
+**The first version could be bought.** Anybody may open a round and anybody
+may file to one, so a single wallet could open a 1 GEN round, file to it, win
+it, take the award and the remainder straight back, and walk into every pool
+with a floor of one. The pre-submission check asked exactly that question and
+the answer was yes. A funded proposal whose author is the treasurer of the
+round that funded it is now `self_funded` and earns no reputation; the audit
+walks `_reputation` for the comparison. What it cannot see is two wallets owned
+by one person, which looks on chain exactly like a treasurer funding a
+stranger. That limit is stated in the method, on the reputation page and in
+the README, rather than hidden behind a stronger-sounding name.
 
 ### The novelty gate across rounds, and its honest limit
 

@@ -49,10 +49,12 @@ export default function ReputationPage() {
             <Figure Icon={Gauge} label="Average score" value={data.scored > 0 ? `${data.average_score_text} / 7.00` : "—"} />
             <Figure Icon={ShieldCheck} label="Appeals won" value={String(data.contests_won)} />
             <Figure Icon={ShieldAlert} label="Appeals lost" value={String(data.contests_lost)} />
+            <Figure Icon={Coins} label="Self-funded (no reputation)" value={String(data.self_funded ?? 0)} />
           </div>
           <p style={{ margin: "20px 0 0", fontSize: "0.82rem", color: "var(--muted)", lineHeight: 1.6 }}>
             <Award size={14} style={{ verticalAlign: -2 }} /> A round with a floor of zero admits a wallet the chain has
-            never seen; a floor of one admits only wallets this contract has funded at least once.
+            never seen; a floor of one admits only wallets this contract has funded at least once — and a grant from a
+            round the wallet opened itself does not count, so nobody can fund their own way past a floor.
           </p>
         </div>
       )}

@@ -7807,5 +7807,340 @@ class TestConsumerNewViews(unittest.TestCase):
         self.assertEqual(calls, [])
 
 
+
+class TestFinalHardCheck(unittest.TestCase):
+    """THE TEN QUESTIONS ASKED BEFORE SUBMISSION, one test (or a few) each,
+    named after the question. Each is also demonstrated on chain by
+    test/seed_milestone.mjs; these are the versions that run in a second."""
+
+    def setUp(self):
+        self.c = fresh(round_cooldown_s=0, contest_window_s=300, stall_ttl_s=240)
+
+    def settle_round(self, rid, t, scores=None):
+        """Score every pending proposal, rank, and move the clock past the
+        appeal window. Returns the new time."""
+        set_now(t)
+        for pid in self.c._ids_of(rid):
+            if self.c.proposals[pid - 1].status == "PENDING":
+                score_one(self.c, rid, pid, scores=scores)
+        rnd = self.c.rounds[rid - 1]
+        if rnd.status != "RANKED":
+            self.assertTrue(ok(send(self.c, STRANGER, 0, "finalize", rid)))
+        return t + 301
+
+    def claim_everything(self, rid):
+        for pid in self.c._ids_of(rid):
+            prop = self.c.proposals[pid - 1]
+            if int(prop.payout_wei) > int(prop.paid_wei):
+                self.assertTrue(ok(send(self.c, prop.author, 0, "claim_award", rid, pid)))
+
+    # --- 1 ------------------------------------------------------------------
+    def test_q1_pool_a_two_rounds_finalized_and_claimed_hold_exactly_zero(self):
+        c = self.c
+        pid, r1 = open_pool(c, window=300, max_winners=2)
+        file_proposal(c, r1, ALICE, STRONG)
+        file_proposal(c, r1, BOB, MEDIUM)
+        t = self.settle_round(r1, NOW + 301)
+        self.claim_everything(r1)
+        send(c, TREASURER, 3 * GEN, "top_up_pool", pid)
+        r2 = int(send(c, TREASURER, 0, "create_next_round", pid)["round_id"])
+        file_proposal(c, r2, CAROL, THIN, asked=GEN)
+        file_proposal(c, r2, DAVE, WEAK, asked=GEN)
+        t = self.settle_round(r2, t + 301)
+        self.claim_everything(r2)
+        set_now(t)
+        for r in (r1, r2):
+            self.assertTrue(ok(send(c, TREASURER, 0, "claim_remainder_fallback", r)))
+        drain(c, TREASURER, ALICE, BOB, CAROL, DAVE)
+        for r in (r1, r2):
+            self.assertEqual(c.rounds[r - 1].status, "FINALIZED")
+            self.assertEqual(round_locked(c, r), 0)
+        self.assertEqual(int(pool_of(c, pid).reserve_wei), 0)
+        self.assertEqual(int(c.balance_wei), 0)
+
+    # --- 2 ------------------------------------------------------------------
+    def test_q2_both_milestones_release_the_full_award_with_no_dust(self):
+        """An award that does not divide evenly by 60/40, so a floor-only rule
+        WOULD leave dust. The last tranche takes it."""
+        c = self.c
+        _, rid = open_pool(c, pool=10 * GEN, max_winners=1, window=300,
+                           options={"milestones": MILESTONES_60_40})
+        odd = 3 * GEN + 7
+        a = file_proposal(c, rid, ALICE, STRONG, asked=odd)
+        self.settle_round(rid, NOW + 301)
+        prop = c.proposals[a - 1]
+        self.assertEqual(int(prop.milestone_held_wei), odd)
+        released = []
+        for i, text in enumerate((GOOD_PROOF, FINAL_PROOF)):
+            SCORER.serve([7], 7)
+            out = send(c, ALICE, 0, "submit_milestone_proof", rid, a, i, "u", text)
+            self.assertEqual(out["outcome"], "MILESTONE_PASSED")
+            released.append(int(out["released_wei"]))
+        self.assertEqual(released[0], odd * 6000 // 10000)
+        self.assertEqual(sum(released), odd)
+        self.assertEqual(int(prop.milestone_held_wei), 0)
+        self.assertEqual(int(prop.milestone_released_wei), odd)
+        out = send(c, ALICE, 0, "claim_award", rid, a)
+        self.assertEqual(int(out["payout_wei"]), odd + int(prop.stake_wei))
+
+    # --- 3 ------------------------------------------------------------------
+    def test_q3_silent_approvers_lapse_and_anyone_may_finalize(self):
+        c = self.c
+        _, rid = open_pool(c, window=300, options={
+            "co_approvers": [CAROL.as_hex, DAVE.as_hex], "approval_window_s": 60})
+        a = file_proposal(c, rid, ALICE, STRONG)
+        set_now(NOW + 301)
+        score_one(c, rid, a)
+        rnd = c.rounds[rid - 1]
+        lapses = int(rnd.deadline) + int(rnd.stall_ttl_s) + 60
+        set_now(lapses)
+        out = send(c, STRANGER, 0, "finalize", rid)
+        self.assertTrue(rejected(out))
+        self.assertEqual(out["lapses_at"], lapses)
+        set_now(lapses + 1)
+        out = send(c, STRANGER, 0, "finalize", rid)
+        self.assertTrue(ok(out))
+        self.assertEqual(out["approval_outcome"], "LAPSED")
+        self.assertEqual(view(c, STRANGER, "get_approvals", rid)["lapsed"], True)
+        self.assertTrue(ok(send(c, ALICE, 0, "claim_award", rid, a)))
+
+    # --- 4 ------------------------------------------------------------------
+    def test_q4_a_treasurer_funding_themselves_earns_no_reputation(self):
+        c = self.c
+        rid = open_round(c, treasurer=ALICE, pool=GEN, max_winners=1, window=300)
+        a = file_proposal(c, rid, ALICE, STRONG, asked=GEN)
+        self.settle_round(rid, NOW + 301)
+        self.assertEqual(c.proposals[a - 1].status, "FUNDED")
+        stats = view(c, STRANGER, "get_proposer_stats", ALICE.as_hex)
+        self.assertEqual(stats["proposals_funded"], 0)
+        self.assertEqual(stats["self_funded"], 1)
+        self.assertEqual(stats["total_awarded_wei"], "0")
+
+    def test_q4_self_funding_does_not_open_a_gated_pool(self):
+        c = self.c
+        rid = open_round(c, treasurer=ALICE, pool=GEN, max_winners=1, window=300)
+        file_proposal(c, rid, ALICE, STRONG, asked=GEN)
+        t = self.settle_round(rid, NOW + 301)
+        set_now(t)
+        _, gated = open_pool(c, options={"min_reputation": 1}, name="Gated pool")
+        out = send(c, ALICE, int(c.spam_stake_wei), "submit_proposal", gated,
+                   MEDIUM, GEN, TIMELINE_STRONG, TEAM_STRONG)
+        self.assertTrue(rejected(out))
+        self.assertEqual(out["proposals_funded"], 0)
+
+    def test_q4_funding_by_somebody_else_still_counts(self):
+        c = self.c
+        rid = open_round(c, treasurer=BOB, pool=GEN, max_winners=1, window=300)
+        file_proposal(c, rid, ALICE, STRONG, asked=GEN)
+        self.settle_round(rid, NOW + 301)
+        stats = view(c, STRANGER, "get_proposer_stats", ALICE.as_hex)
+        self.assertEqual(stats["proposals_funded"], 1)
+        self.assertEqual(stats["self_funded"], 0)
+
+    # --- 5 ------------------------------------------------------------------
+    def test_q5_a_template_cannot_be_modified(self):
+        c = self.c
+        send(c, STRANGER, 0, "create_template", "Standard Ecosystem", CRITERIA_4)
+        before = view(c, STRANGER, "get_template", 1)
+        # Every write that could conceivably touch it, by its creator and by
+        # others, including saving the same name again.
+        send(c, STRANGER, 0, "create_template", "Standard Ecosystem", CRITERIA_3)
+        send(c, TREASURER, 2 * GEN, "create_round_from_template", 0, 1, "Pool E",
+             "", 4, 1, 400, 300, "")
+        after = view(c, STRANGER, "get_template", 1)
+        for key in ("name", "criteria", "criteria_hash", "creator", "created_at"):
+            self.assertEqual(before[key], after[key], key)
+        writes = {m.name for m in ast.walk(TREE) if isinstance(m, ast.FunctionDef)
+                  for d in m.decorator_list if ast.unparse(d).startswith("gl.public.write")}
+        self.assertFalse([w for w in writes if "template" in w
+                          and w not in ("create_template", "create_round_from_template")])
+
+    # --- 6 ------------------------------------------------------------------
+    def test_q6_no_amendment_once_evaluation_has_started(self):
+        c = self.c
+        rid = open_round(c, window=300)
+        a = file_proposal(c, rid, ALICE, MEDIUM)
+        b = file_proposal(c, rid, BOB, THIN)
+        set_now(NOW + 301)
+        score_one(c, rid, a)
+        self.assertEqual(c.rounds[rid - 1].status, "EVALUATING")
+        text = TestAmendments.AMEND
+        for pid, who in ((a, ALICE), (b, BOB)):
+            out = send(c, who, 0, "amend_proposal", rid, pid, text)
+            self.assertTrue(rejected(out), pid)
+            self.assertEqual(c.proposals[pid - 1].amendment, "")
+
+    def test_q6_no_amendment_the_second_after_the_deadline(self):
+        c = self.c
+        rid = open_round(c, window=300)
+        a = file_proposal(c, rid, ALICE, MEDIUM)
+        set_now(int(c.rounds[rid - 1].deadline) + 1)
+        self.assertTrue(rejected(send(c, ALICE, 0, "amend_proposal", rid, a,
+                                      TestAmendments.AMEND)))
+
+    # --- 7 ------------------------------------------------------------------
+    def test_q7_no_extension_once_evaluation_has_started(self):
+        c = self.c
+        rid = open_round(c, window=300, max_proposals=5)
+        a = file_proposal(c, rid, ALICE)
+        set_now(NOW + 301)
+        score_one(c, rid, a)
+        deadline = int(c.rounds[rid - 1].deadline)
+        out = send(c, TREASURER, 0, "extend_deadline", rid, DAY)
+        self.assertTrue(rejected(out))
+        self.assertEqual(int(c.rounds[rid - 1].deadline), deadline)
+        self.assertEqual(int(c.rounds[rid - 1].extensions_used), 0)
+
+    def test_q7_no_extension_after_the_deadline_even_before_any_score(self):
+        c = self.c
+        rid = open_round(c, window=300, max_proposals=5)
+        file_proposal(c, rid, ALICE)
+        set_now(NOW + 301)
+        self.assertTrue(rejected(send(c, TREASURER, 0, "extend_deadline", rid, DAY)))
+
+    # --- 8 ------------------------------------------------------------------
+    def test_q8_evaluate_all_skips_what_is_already_scored(self):
+        c = self.c
+        rid = open_round(c, window=300)
+        ids = [file_proposal(c, rid, who, text) for who, text in
+               ((ALICE, STRONG), (BOB, MEDIUM), (CAROL, THIN), (DAVE, WEAK))]
+        set_now(NOW + 301)
+        score_one(c, rid, ids[0])
+        score_one(c, rid, ids[2])
+        before = {p: (c.proposals[p - 1].content_hash,
+                      int(c.proposals[p - 1].eval_attempts)) for p in (ids[0], ids[2])}
+        SCORER.serve([7] * 4, 7)
+        out = send(c, STRANGER, 0, "evaluate_all", rid)
+        self.assertEqual(sorted(r["proposal_id"] for r in out["results"]),
+                         [ids[1], ids[3]])
+        self.assertEqual(out["evaluated_count"], 2)
+        self.assertEqual(out["remaining_count"], 0)
+        for p, (h, n) in before.items():
+            self.assertEqual(c.proposals[p - 1].content_hash, h)
+            self.assertEqual(int(c.proposals[p - 1].eval_attempts), n)
+        self.assertEqual(int(c.rounds[rid - 1].evaluated_count), 4)
+        self.assertTrue(rejected(send(c, STRANGER, 0, "evaluate_all", rid)))
+
+    def test_q8_evaluate_all_skips_a_skipped_proposal(self):
+        c = self.c
+        rid = open_round(c, window=300)
+        a = file_proposal(c, rid, ALICE)
+        b = file_proposal(c, rid, BOB, MEDIUM)
+        set_now(NOW + 301 + 240)
+        send(c, STRANGER, 0, "settle_stalled", rid, a)
+        out = send(c, STRANGER, 0, "evaluate_all", rid)
+        self.assertEqual([r["proposal_id"] for r in out["results"]], [b])
+
+    # --- 9 ------------------------------------------------------------------
+    def test_q9_a_plain_round_through_a_whole_lifecycle_matches_the_original(self):
+        """Every field the original contract wrote, and nothing the new
+        machinery writes, on a round opened the original way."""
+        c = self.c
+        rid = open_round(c, window=300, max_winners=1)
+        a = file_proposal(c, rid, ALICE, STRONG, asked=2 * GEN)
+        b = file_proposal(c, rid, BOB, WEAK)
+        self.settle_round(rid, NOW + 301)
+        rnd = c.rounds[rid - 1]
+        for field in ("pool_id", "round_number", "template_id", "min_reputation",
+                      "approvals_needed", "approvals_count", "milestone_count",
+                      "extensions_used"):
+            self.assertEqual(int(getattr(rnd, field)), 0, field)
+        self.assertEqual(rnd.approval_outcome, "")
+        self.assertEqual(rnd.approvers_csv, "")
+        win = c.proposals[a - 1]
+        self.assertEqual(int(win.payout_wei), int(win.award_wei) + int(win.stake_wei))
+        self.assertEqual(int(win.milestone_held_wei), 0)
+        self.assertEqual(win.amendment, "")
+        self.assertEqual(c.proposals[b - 1].status, "REJECTED")
+        out = send(c, ALICE, 0, "claim_award", rid, a)
+        self.assertEqual(int(out["paid_wei"]), int(win.award_wei) + int(win.stake_wei))
+        self.assertTrue(rejected(send(c, ALICE, 0, "claim_award", rid, a)))
+        set_now(NOW + 301 + 301)
+        self.assertTrue(ok(send(c, TREASURER, 0, "claim_remainder", rid)))
+        self.assertEqual(round_locked(c, rid), 0)
+        self.assertTrue(view(c, STRANGER, "verify_evaluation", rid, a)["verified"])
+
+    # --- 10 -----------------------------------------------------------------
+    def test_q10_pools_a_to_e_fully_settled_leave_the_contract_at_zero(self):
+        """The seeded scenario, end to end offline: A two rounds, B two silent
+        co-approvers (lapse), C milestones, D reputation-gated, E from a
+        template with an extension. After every claim and every sweep the
+        contract's books are zero AND every wei that came in has been
+        delivered back out by a transfer."""
+        c = self.c
+        TRANSFERS.clear()
+        deposited = 0
+
+        def dep(amount):
+            nonlocal deposited
+            deposited += amount
+            return amount
+
+        t = NOW
+        # A, round 1
+        pa, a1 = open_pool(c, pool=dep(5 * GEN), window=300, max_winners=2)
+        file_proposal(c, a1, ALICE, STRONG, stake=dep(int(c.spam_stake_wei)))
+        file_proposal(c, a1, BOB, MEDIUM, stake=dep(int(c.spam_stake_wei)))
+        # B
+        _, b1 = open_pool(c, pool=dep(3 * GEN), window=300, name="Security Audit Fund",
+                          options={"co_approvers": [CAROL.as_hex, DAVE.as_hex],
+                                   "approval_window_s": 60})
+        file_proposal(c, b1, ALICE, MEDIUM, stake=dep(int(c.spam_stake_wei)))
+        # C
+        _, c1 = open_pool(c, pool=dep(3 * GEN), window=300, max_winners=1,
+                          name="Dev Tools Grant",
+                          options={"milestones": MILESTONES_60_40})
+        cw = file_proposal(c, c1, BOB, STRONG, asked=2 * GEN,
+                           stake=dep(int(c.spam_stake_wei)))
+        # E, from a template, extended once
+        send(c, STRANGER, 0, "create_template", "Standard Ecosystem", CRITERIA_4)
+        e1 = int(send(c, TREASURER, dep(2 * GEN), "create_round_from_template", 0,
+                      1, "Pool E", "", 4, 1, 400, 300, "")["round_id"])
+        send(c, TREASURER, 0, "extend_deadline", e1, 120)
+        file_proposal(c, e1, CAROL, MEDIUM, asked=GEN,
+                      stake=dep(int(c.spam_stake_wei)))
+
+        t = self.settle_round(a1, t + 301)
+        set_now(t)
+        for pid in c._ids_of(b1):
+            score_one(c, b1, pid)
+        rb = c.rounds[b1 - 1]
+        t = int(rb.deadline) + int(rb.stall_ttl_s) + 61
+        set_now(t)
+        self.assertEqual(send(c, STRANGER, 0, "finalize", b1)["approval_outcome"],
+                         "LAPSED")
+        t = self.settle_round(c1, t)
+        for i, text in enumerate((GOOD_PROOF, FINAL_PROOF)):
+            SCORER.serve([7], 7)
+            send(c, BOB, 0, "submit_milestone_proof", c1, cw, i, "u", text)
+        t = self.settle_round(e1, t + 200)
+
+        # A, round 2, and D - gated on a proposer A funded
+        send(c, TREASURER, dep(3 * GEN), "top_up_pool", pa)
+        a2 = int(send(c, TREASURER, 0, "create_next_round", pa)["round_id"])
+        file_proposal(c, a2, DAVE, THIN, asked=GEN, stake=dep(int(c.spam_stake_wei)))
+        _, d1 = open_pool(c, pool=dep(2 * GEN), window=300, name="Community Fund",
+                          options={"min_reputation": 1})
+        file_proposal(c, d1, ALICE, MEDIUM, asked=GEN, stake=dep(int(c.spam_stake_wei)))
+        newcomer = send(c, NOBODY, dep(int(c.spam_stake_wei)), "submit_proposal",
+                        d1, THIN, GEN, TIMELINE_WEAK, TEAM_WEAK)
+        self.assertTrue(rejected(newcomer))
+        t = self.settle_round(a2, t + 301)
+        t = self.settle_round(d1, t)
+
+        set_now(t + 400)
+        for r in (a1, b1, c1, e1, a2, d1):
+            self.claim_everything(r)
+            if c.rounds[r - 1].status == "RANKED":
+                self.assertTrue(ok(send(c, TREASURER, 0, "claim_remainder_fallback", r)))
+            self.assertEqual(round_locked(c, r), 0, "round " + str(r))
+        drain(c, TREASURER, ALICE, BOB, CAROL, DAVE, NOBODY, STRANGER)
+        self.assertEqual(int(c.balance_wei), 0)
+        self.assertEqual(int(c.locked_wei), 0)
+        self.assertEqual(int(c.payable_wei), 0)
+        self.assertEqual(sum(v for _, v in TRANSFERS), deposited,
+                         "every wei deposited was transferred back out")
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=1)
